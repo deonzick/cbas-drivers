@@ -42,11 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sb.from("quarters").select("*").eq("is_active", true).maybeSingle(),
       ]);
       if (p.error || q.error) throw p.error || q.error;
-      let due: string | null = (q.data as Quarter | null)?.due_date || null;
-      if (q.data) {
-        const { data: dl } = await sb.from("driver_deadlines").select("due_date").eq("quarter_id", q.data.id).eq("driver_id", uid).maybeSingle();
-        if (dl?.due_date) due = dl.due_date;
-      }
+      // Every driver shares the quarter's due date.
+      const due: string | null = (q.data as Quarter | null)?.due_date || null;
       setProfile((p.data as Profile) || null); setQuarter((q.data as Quarter) || null); setDue(due);
       cache.set(`auth-${uid}`, { profile: p.data, quarter: q.data, due });
     } catch {

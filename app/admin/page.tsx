@@ -2,12 +2,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AdminShell, useToast } from "@/components/Shell";
-import { useAuth, type Profile, type Quarter } from "@/components/Auth";
+import { useAuth } from "@/components/Auth";
 import { useAdminData } from "@/lib/useAdminData";
-import { DriverRow } from "@/components/admin/DriverRow";
+import { StatusPie } from "@/components/admin/StatusPie";
+import { Disclosure } from "@/components/Disclosure";
 import { isDriver } from "@/lib/roles";
 import { api, supabase } from "@/lib/supabase";
-import { dueText, fmtDate, sectionLabel } from "@/lib/format";
+import { dueText, fmtDate } from "@/lib/format";
 
 function suggestLabel(after?: string) {
   if (after) {
@@ -18,7 +19,6 @@ function suggestLabel(after?: string) {
   return `${Math.floor(d.getMonth() / 3) + 1}Q${String(d.getFullYear()).slice(-2)}`;
 }
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
-const when = (iso: string) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 type Preset = { label: string; start_date: string | null; due_date: string | null };
 
 /** Saved quarter dates per year (1Q–4Q), used to prefill each quarter when it starts. */
@@ -41,10 +41,9 @@ function QuarterCalendar({ presets, onSaved, say }: { presets: Preset[]; onSaved
     } catch (e: any) { say(e.message); }
   }
   return (
-    <section className="pane pad stack">
-      <div className="row"><h2 className="grow">Quarter calendar</h2>
+    <div className="stack">
+      <div className="row"><span className="grow muted small">Set each quarter's drive dates once. When you start a quarter, its dates fill in from here.</span>
         <div className="seg" role="group" aria-label="Year">{[thisYear, thisYear + 1, thisYear + 2].map(y => <button key={y} aria-pressed={year === y} onClick={() => setYear(y)}>{y}</button>)}</div></div>
-      <p className="muted small" style={{ margin: 0 }}>Set each quarter's drive dates once. When you start a quarter, its dates fill in from here.</p>
       <div className="tablewrap"><table>
         <thead><tr><th>Quarter</th><th>Drives start</th><th>Drives due</th></tr></thead>
         <tbody>{labels.map(l => (
@@ -53,13 +52,13 @@ function QuarterCalendar({ presets, onSaved, say }: { presets: Preset[]; onSaved
             <td><input type="date" aria-label={`${l} due`} value={rows[l]?.due || ""} onChange={e => setRows({ ...rows, [l]: { ...rows[l], due: e.target.value } })} /></td></tr>))}</tbody>
       </table></div>
       <div><button className="btn" onClick={save}>Save {year} dates</button></div>
-    </section>
+    </div>
   );
 }
 
 function Overview() {
   const { quarter, reload: reloadAuth } = useAuth();
-  const { people, uploads, stats, deadlines, quarters, loading, reload } = useAdminData(quarter);
+  const { people, stats, quarters, loading, reload } = useAdminData(quarter);
   const [toast, say] = useToast();
   const [label, setLabel] = useState("");
   const [newStart, setNewStart] = useState(""); const [newDue, setNewDue] = useState("");
@@ -109,7 +108,7 @@ function Overview() {
 
   if (!quarter) return (
     <div className="stack" style={{ maxWidth: 560 }}>
-      <div><div className="eyebrow">No active quarter</div><h1>Start the next drive cycle</h1></div>
+      <header className="page-h"><div className="eyebrow">No active quarter</div><h1>Start the next drive cycle</h1></header>
       <div className="pane pad stack">
         <p className="muted" style={{ margin: 0 }}>Drivers see nothing until a quarter is active and their drive sheet is uploaded.</p>
         <div className="form-grid">
@@ -121,81 +120,120 @@ function Overview() {
         {presets.find(p => p.label === label) && <span className="muted small">Dates filled from your quarter calendar.</span>}
         <div><button className="btn primary" disabled={busy} onClick={() => act({ action: "start", label, startDate: newStart || null, dueDate: newDue || null }, `${label} started`)}>Start {label || "quarter"}</button></div>
       </div>
-      <QuarterCalendar presets={presets} onSaved={loadPresets} say={say} />
+      <div className="group">
+        <Disclosure title="Quarter calendar" value={`${presets.length} saved`}><QuarterCalendar presets={presets} onSaved={loadPresets} say={say} /></Disclosure>
+      </div>
       {toast}
     </div>
   );
 
   const teamDue = quarter.due_date ? dueText(quarter.due_date) : null;
   const driversDone = drivers.filter(d => stats[d.id] && stats[d.id].subs > 0 && stats[d.id].scanned === stats[d.id].subs).length;
+  const driversStarted = drivers.filter(d => stats[d.id] && stats[d.id].secsDone > 0).length - driversDone;
+  const noSheet = drivers.filter(d => !stats[d.id]).length;
+  const st = { complete: 0, toscan: 0, partial: 0, none: 0 };
+  for (const ds of Object.values(stats)) for (const x of ds.list) {
+    if (x.secs > 0 && x.done === x.secs) st[x.scanned ? "complete" : "toscan"]++;
+    else st[x.done > 0 ? "partial" : "none"]++;
+  }
+  const preset = presets.find(p => p.label === quarter.label);
+  const range = quarter.start_date || quarter.due_date
+    ? `${quarter.start_date ? fmtDate(quarter.start_date, { month: "short", day: "numeric" }) : "?"} – ${quarter.due_date ? fmtDate(quarter.due_date, { month: "short", day: "numeric" }) : "?"}`
+    : "Not set";
 
   return (
     <div className="stack">
-      <section className="summary">
-        <div><div className="eyebrow">Active quarter{teamDue ? ` · ${teamDue.text}` : ""}</div><h1>{quarter.label} drives</h1></div>
-        <div><div className="stat">{all.subsDone}<small> / {all.subs}</small></div><div className="eyebrow">Driven</div></div>
-        <div><div className="stat">{all.scanned}<small> / {all.subs}</small></div><div className="eyebrow">Scanned</div></div>
-        <div><div className="stat">{driversDone}<small> / {drivers.length}</small></div><div className="eyebrow">Drivers complete</div></div>
-        <div><div className="stat">{all.today}</div><div className="eyebrow">Sections today</div></div>
-        <div className="meter">
-          <div className="dual" style={{ gridTemplateColumns: "60px minmax(0,1fr) 44px" }}><span className="eyebrow">Driven</span><div className="bar"><i style={{ width: `${pct(all.subsDone, all.subs)}%` }} /></div><span className="mono">{pct(all.subsDone, all.subs)}%</span></div>
-          <div className="dual" style={{ gridTemplateColumns: "60px minmax(0,1fr) 44px" }}><span className="eyebrow">Scanned</span><div className="bar"><i style={{ width: `${pct(all.scanned, all.subs)}%`, background: "var(--scan)" }} /></div><span className="mono">{pct(all.scanned, all.subs)}%</span></div>
+      <header className="page-h">
+        <div className="eyebrow">{quarter.start_date ? `Active quarter · ${range}` : "Active quarter"}</div>
+        <div className="row" style={{ alignItems: "baseline" }}>
+          <h1 className="grow">{quarter.label} Overview</h1>
+          {teamDue && <span className={`pill lg ${teamDue.tone}`}>{teamDue.text}</span>}
         </div>
-      </section>
+      </header>
 
-      <section className="pane">
-        <div className="pane-h"><h2 className="grow">Drivers</h2><Link className="btn sm primary" href="/admin/upload">Upload drive sheets</Link><button className="btn sm" onClick={reload}>Refresh</button></div>
-        {!drivers.length && <div className="pad">No drivers yet. <Link href="/admin/drivers">Add your drivers</Link>, then upload each one's drive sheet.</div>}
-        {drivers.map(d => (
-          <DriverRow key={d.id} d={d} s={stats[d.id]} quarter={quarter} due={deadlines[d.id] || quarter.due_date} isOverride={!!deadlines[d.id]}
-            uploads={uploads.filter(u => u.driver_id === d.id)} drivers={drivers} onChanged={reload} say={say} />))}
-      </section>
-
-      <section className="pane pad stack">
-        <h2>Quarter dates</h2>
-        <div className="row" style={{ alignItems: "flex-end" }}>
-          <div className="field" style={{ width: 190 }}><label htmlFor="ds">Drives start</label><input id="ds" type="date" value={dates.start} onChange={e => setDates({ ...dates, start: e.target.value })} /></div>
-          <div className="field" style={{ width: 190 }}><label htmlFor="dd">Drives due</label><input id="dd" type="date" value={dates.due} onChange={e => setDates({ ...dates, due: e.target.value })} /></div>
-          <button className="btn" disabled={busy} onClick={() => act({ action: "dates", id: quarter.id, startDate: dates.start || null, dueDate: dates.due || null }, "Dates saved")}>Save dates</button>
+      {!drivers.length || !all.subs ? (
+        <div className="pane pad stack">
+          <b>{drivers.length ? "No drive sheets uploaded yet." : "No drivers yet."}</b>
+          <span className="muted small">{drivers.length ? "Upload each driver's sheet and their progress shows up here." : "Add your drivers, then upload each one's drive sheet."}</span>
+          <div className="row">
+            {!drivers.length && <Link className="btn primary" href="/admin/drivers?tab=logins">Add drivers</Link>}
+            <Link className={`btn ${drivers.length ? "primary" : ""}`} href="/admin/upload">Upload drive sheets</Link>
+          </div>
         </div>
-        <p className="muted small" style={{ margin: 0 }}>Drivers see a countdown to their due date. Open a driver above to give them a different date.</p>
-        {presets.find(p => p.label === quarter.label) && <div><button className="btn sm ghost" onClick={() => { const p = presets.find(x => x.label === quarter.label)!; setDates({ start: p.start_date || "", due: p.due_date || "" }); }}>Fill from quarter calendar</button></div>}
-      </section>
-
-      <QuarterCalendar presets={presets} onSaved={loadPresets} say={say} />
-
-      <section className="pane pad stack">
-        <h2>Planning times</h2>
-        <p className="muted small" style={{ margin: 0 }}>Used to estimate time on site when drivers plan their day.</p>
-        <div className="row" style={{ alignItems: "flex-end" }}>
-          <div className="field" style={{ width: 170 }}><label htmlFor="mps">Minutes per section</label><input id="mps" type="number" min={0} max={60} value={settings.minutesPerSection} onChange={e => setSettings({ ...settings, minutesPerSection: Number(e.target.value) })} /></div>
-          <div className="field" style={{ width: 170 }}><label htmlFor="mpst">Minutes per stop</label><input id="mpst" type="number" min={0} max={60} value={settings.minutesPerStop} onChange={e => setSettings({ ...settings, minutesPerStop: Number(e.target.value) })} /></div>
-          <button className="btn" disabled={busy} onClick={() => act({ action: "settings", ...settings }, "Planning times saved")}>Save</button>
+      ) : (<>
+        <div className="tiles">
+          <div className="tile"><span className="tile-k">Driven</span><span className="tile-v">{all.subsDone}<small>/{all.subs}</small></span><div className="bar"><i style={{ width: `${pct(all.subsDone, all.subs)}%` }} /></div><span className="tile-s">{pct(all.subsDone, all.subs)}% of subdivisions</span></div>
+          <div className="tile"><span className="tile-k">Scanned</span><span className="tile-v">{all.scanned}<small>/{all.subs}</small></span><div className="bar"><i style={{ width: `${pct(all.scanned, all.subs)}%`, background: "var(--scan)" }} /></div><span className="tile-s">{pct(all.scanned, all.subs)}% in TurboScan</span></div>
+          <div className="tile"><span className="tile-k">Sections</span><span className="tile-v">{all.done.toLocaleString()}<small>/{all.secs.toLocaleString()}</small></span><div className="bar"><i style={{ width: `${pct(all.done, all.secs)}%` }} /></div><span className="tile-s">{all.today ? `${all.today} checked off today` : "None checked off today"}</span></div>
+          <div className="tile"><span className="tile-k">Drivers complete</span><span className="tile-v">{driversDone}<small>/{drivers.length}</small></span><div className="bar"><i style={{ width: `${pct(driversDone, drivers.length)}%`, background: "var(--scan)" }} /></div><span className="tile-s">{driversStarted} driving{noSheet ? ` · ${noSheet} without a sheet` : ""}</span></div>
         </div>
-      </section>
 
-      <section className="pane pad stack">
-        <h2>End of quarter</h2>
-        <p className="muted small" style={{ margin: 0 }}>Closing {quarter.label} locks it as a read-only archive: drivers stop seeing it, nothing more can be checked off, and you can still open it, see who drove and scanned what, and download the CSV under Archive. Then start the next quarter and upload its sheets.</p>
-        <div className="row"><button className="btn" onClick={downloadCsv}>Download {quarter.label} completion (CSV)</button>
-          {!clearing && <button className="btn danger" onClick={() => setClearing(true)}>Close {quarter.label}…</button>}</div>
-        {clearing && (
-          <div className="confirm-box">
-            <b>Drivers lose access to {quarter.label} and it becomes read-only.</b>
-            <div className="field" style={{ maxWidth: 260 }}><label htmlFor="cf">Type {quarter.label} to confirm</label><input id="cf" type="text" value={confirm} onChange={e => setConfirm(e.target.value.toUpperCase())} /></div>
-            <div className="row">
-              <button className="btn danger solid" disabled={busy || confirm !== quarter.label} onClick={async () => { if (await act({ action: "close", id: quarter.id, confirm }, `${quarter.label} closed and archived`)) { setClearing(false); setConfirm(""); } }}>Close and archive {quarter.label}</button>
-              <button className="btn ghost" onClick={() => { setClearing(false); setConfirm(""); }}>Cancel</button>
+        <section className="pane pad stack">
+          <div className="row"><h2 className="grow">Status of every subdivision</h2><button className="btn sm gray" onClick={reload}>Refresh</button></div>
+          <StatusPie center={`${pct(st.complete, all.subs)}%`} centerLabel="Complete" slices={[
+            { key: "complete", label: "Complete", note: "Driven and scanned", value: st.complete, color: "var(--c-complete)" },
+            { key: "toscan", label: "Needs scan", note: "Driven, not in TurboScan yet", value: st.toscan, color: "var(--c-toscan)" },
+            { key: "partial", label: "In progress", note: "Some sections checked", value: st.partial, color: "var(--c-partial)" },
+            { key: "none", label: "Not started", note: "No sections checked", value: st.none, color: "var(--c-none)" },
+          ]} />
+          <Link className="link-row" href="/admin/drivers">See each driver's progress<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 6l6 6-6 6" /></svg></Link>
+        </section>
+      </>)}
+
+      <div>
+        <div className="group-label">Quarter settings</div>
+        <div className="group">
+          <Disclosure title="Quarter dates" value={range}>
+            <div className="stack">
+              <div className="row" style={{ alignItems: "flex-end" }}>
+                <div className="field" style={{ width: 190 }}><label htmlFor="ds">Drives start</label><input id="ds" type="date" value={dates.start} onChange={e => setDates({ ...dates, start: e.target.value })} /></div>
+                <div className="field" style={{ width: 190 }}><label htmlFor="dd">Drives due</label><input id="dd" type="date" value={dates.due} onChange={e => setDates({ ...dates, due: e.target.value })} /></div>
+                <button className="btn" disabled={busy} onClick={() => act({ action: "dates", id: quarter.id, startDate: dates.start || null, dueDate: dates.due || null }, "Dates saved")}>Save dates</button>
+              </div>
+              <span className="muted small">Every driver counts down to this due date.</span>
+              {preset && <div><button className="btn sm gray" onClick={() => setDates({ start: preset.start_date || "", due: preset.due_date || "" })}>Fill from quarter calendar</button></div>}
             </div>
-          </div>)}
-        {err && <div className="alert err">{err}</div>}
-      </section>
-
-      {quarters.some(q => q.closed_at) && (
-        <section className="pane pad row">
-          <div className="grow"><b>Archive</b><div className="muted small">{quarters.filter(q => q.closed_at).map(q => q.label).join(", ")}</div></div>
-          <Link className="btn" href="/admin/archive">Open archive</Link>
-        </section>)}
+          </Disclosure>
+          <Disclosure title="Quarter calendar" value={`${presets.filter(p => p.start_date || p.due_date).length} quarters saved`}>
+            <QuarterCalendar presets={presets} onSaved={loadPresets} say={say} />
+          </Disclosure>
+          <Disclosure title="Planning times" value={`${settings.minutesPerSection} min per section`}>
+            <div className="stack">
+              <span className="muted small">Used to estimate time on site when drivers plan their day.</span>
+              <div className="row" style={{ alignItems: "flex-end" }}>
+                <div className="field" style={{ width: 170 }}><label htmlFor="mps">Minutes per section</label><input id="mps" type="number" min={0} max={60} value={settings.minutesPerSection} onChange={e => setSettings({ ...settings, minutesPerSection: Number(e.target.value) })} /></div>
+                <div className="field" style={{ width: 170 }}><label htmlFor="mpst">Minutes per stop</label><input id="mpst" type="number" min={0} max={60} value={settings.minutesPerStop} onChange={e => setSettings({ ...settings, minutesPerStop: Number(e.target.value) })} /></div>
+                <button className="btn" disabled={busy} onClick={() => act({ action: "settings", ...settings }, "Planning times saved")}>Save</button>
+              </div>
+            </div>
+          </Disclosure>
+          <Disclosure title="Completion report" value="CSV">
+            <div className="stack">
+              <span className="muted small">Every subdivision with who drove it, when, and when it was scanned.</span>
+              <div><button className="btn" onClick={downloadCsv}>Download {quarter.label} completion</button></div>
+            </div>
+          </Disclosure>
+          <Disclosure title={`Close ${quarter.label}`} value="End of quarter" danger>
+            <div className="stack">
+              <span className="muted small">Closing {quarter.label} locks it as a read-only archive: drivers stop seeing it and nothing more can be checked off. You can still open it under Archive. Then start the next quarter and upload its sheets.</span>
+              {!clearing && <div><button className="btn danger" onClick={() => setClearing(true)}>Close {quarter.label}…</button></div>}
+              {clearing && (
+                <div className="confirm-box">
+                  <b>Drivers lose access to {quarter.label} and it becomes read-only.</b>
+                  <div className="field" style={{ maxWidth: 260 }}><label htmlFor="cf">Type {quarter.label} to confirm</label><input id="cf" type="text" value={confirm} onChange={e => setConfirm(e.target.value.toUpperCase())} /></div>
+                  <div className="row">
+                    <button className="btn danger solid" disabled={busy || confirm !== quarter.label} onClick={async () => { if (await act({ action: "close", id: quarter.id, confirm }, `${quarter.label} closed and archived`)) { setClearing(false); setConfirm(""); } }}>Close and archive {quarter.label}</button>
+                    <button className="btn gray" onClick={() => { setClearing(false); setConfirm(""); }}>Cancel</button>
+                  </div>
+                </div>)}
+            </div>
+          </Disclosure>
+          {quarters.some(q => q.closed_at) && (
+            <Link className="disc-link" href="/admin/archive"><span className="grow">Archive</span><span className="disc-value">{quarters.filter(q => q.closed_at).map(q => q.label).join(", ")}</span>
+              <svg className="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 6l6 6-6 6" /></svg></Link>)}
+        </div>
+        {err && <div className="alert err" style={{ marginTop: 12 }}>{err}</div>}
+      </div>
       {toast}
     </div>
   );

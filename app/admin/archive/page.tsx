@@ -21,7 +21,7 @@ function Archive() {
     .then(({ data }) => { const q = (data as Quarter[]) || []; setQuarters(q); setSel(cur => q.find(x => x.id === cur?.id) || q[0] || null); });
   useEffect(() => { loadQuarters(); }, []);
 
-  const { people, stats, uploads, deadlines, loading } = useAdminData(sel);
+  const { people, stats, uploads, loading } = useAdminData(sel);
   const purged = !!sel?.purged_at;
   const summary = ((sel?.summary || {}) as Summary);
   const ids = purged ? Object.keys(summary) : Object.keys(stats);
@@ -73,7 +73,7 @@ function Archive() {
               <tbody>{Object.entries(summary).map(([id, s]) => (
                 <tr key={id}><td>{people.find(p => p.id === id)?.full_name || "Former driver"}</td><td className="num">{s.subdivisions}</td><td className="num">{s.driven ?? "—"}</td><td className="num">{s.scanned ?? "—"}</td></tr>))}</tbody></table></div>
           ) : rows.map(d => (
-            <DriverRow key={d.id} d={d} s={stats[d.id]} quarter={sel} due={deadlines[d.id] || sel.due_date} isOverride={!!deadlines[d.id]}
+            <DriverRow key={d.id} d={d} s={stats[d.id]} quarter={sel}
               uploads={uploads.filter(u => u.driver_id === d.id)} drivers={[]} onChanged={() => {}} say={say} readOnly />))}
         </section>
 

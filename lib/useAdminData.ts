@@ -14,7 +14,6 @@ export function useAdminData(quarter: Quarter | null) {
   const [people, setPeople] = useState<Profile[]>([]);
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [stats, setStats] = useState<Record<string, DriverStats>>({});
-  const [deadlines, setDeadlines] = useState<Record<string, string>>({});
   const [quarters, setQuarters] = useState<Quarter[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,14 +25,12 @@ export function useAdminData(quarter: Quarter | null) {
     ]);
     setPeople((p.data as Profile[]) || []); setQuarters((q.data as Quarter[]) || []);
     if (quarter) {
-      const [u, subRows, d] = await Promise.all([
+      const [u, subRows] = await Promise.all([
         sb.from("uploads").select("*").eq("quarter_id", quarter.id).order("uploaded_at", { ascending: false }),
         fetchAll<any>((from, to) => sb.from("subdivisions").select("id,driver_id,name,submarket,city,sort,scanned_at,sections(completed_at)")
           .eq("quarter_id", quarter.id).order("driver_id").order("sort").order("id").range(from, to)),
-        sb.from("driver_deadlines").select("driver_id,due_date").eq("quarter_id", quarter.id),
       ]);
       setUploads((u.data as Upload[]) || []);
-      setDeadlines(Object.fromEntries(((d.data as any[]) || []).map(r => [r.driver_id, r.due_date])));
       const today = new Date().toDateString();
       const st: Record<string, DriverStats> = {};
       for (const row of subRows) {
@@ -51,10 +48,10 @@ export function useAdminData(quarter: Quarter | null) {
         ds.list.push({ id: row.id, name: row.name, submarket: row.submarket || row.city || "Other", city: row.city, secs: secs.length, done: done.length, scanned: driven ? row.scanned_at : null, drivenAt });
       }
       setStats(st);
-    } else { setUploads([]); setStats({}); setDeadlines({}); }
+    } else { setUploads([]); setStats({}); }
     setLoading(false);
   }, [quarter]);
 
   useEffect(() => { load(); }, [load]);
-  return { people, uploads, stats, deadlines, quarters, loading, reload: load };
+  return { people, uploads, stats, quarters, loading, reload: load };
 }

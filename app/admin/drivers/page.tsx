@@ -1,5 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { DriverRow } from "@/components/admin/DriverRow";
+import { isDriver } from "@/lib/roles";
 import { AdminShell, useToast } from "@/components/Shell";
 import { useAuth, type Profile } from "@/components/Auth";
 import { useAdminData } from "@/lib/useAdminData";
@@ -75,7 +78,15 @@ function Row({ p, me, onDone }: { p: Profile; me: string; onDone: (m: string) =>
 
 function Drivers() {
   const { profile, quarter } = useAuth();
-  const { people, reload } = useAdminData(quarter);
+  const { people, stats, uploads, reload } = useAdminData(quarter);
+  const [tab, setTab] = useState<"progress" | "logins">("progress");
+  const [q, setQ] = useState("");
+  const [sort, setSort] = useState<"name" | "least" | "most">("name");
+  useEffect(() => { if (new URLSearchParams(location.search).get("tab") === "logins") setTab("logins"); }, []);
+  const drivers = people.filter(isDriver);
+  const score = (id: string) => { const s = stats[id]; return s && s.subs ? (s.subsDone + s.scanned) / (2 * s.subs) : -1; };
+  const shown = drivers.filter(d => !q || d.full_name.toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => sort === "name" ? a.full_name.localeCompare(b.full_name) : sort === "least" ? score(a.id) - score(b.id) : score(b.id) - score(a.id));
   const [toast, say] = useToast();
   const [f, setF] = useState({ fullName: "", username: "", driverKey: "", password: genPassword(), role: "driver", drives: false });
   const [err, setErr] = useState<string | null>(null);
@@ -95,7 +106,31 @@ function Drivers() {
 
   return (
     <div className="stack">
-      <div><div className="eyebrow">Team</div><h1>Drivers &amp; logins</h1></div>
+      <header className="page-h"><div className="eyebrow">{quarter ? `${quarter.label} · ${drivers.length} drivers` : "Team"}</div><h1>Drivers</h1></header>
+      <div className="seg wide" role="tablist" aria-label="Drivers view">
+        <button role="tab" aria-pressed={tab === "progress"} aria-selected={tab === "progress"} onClick={() => setTab("progress")}>Progress</button>
+        <button role="tab" aria-pressed={tab === "logins"} aria-selected={tab === "logins"} onClick={() => setTab("logins")}>Logins</button>
+      </div>
+
+      {tab === "progress" && (!quarter
+        ? <div className="pane pad">No active quarter. <Link href="/admin">Start one on the Overview</Link> to see each driver's progress.</div>
+        : <>
+          <div className="row">
+            <input type="search" className="grow" placeholder="Search drivers" value={q} onChange={e => setQ(e.target.value)} aria-label="Search drivers" style={{ flex: "1 1 200px" }} />
+            <select value={sort} onChange={e => setSort(e.target.value as any)} aria-label="Sort" style={{ width: "auto" }}>
+              <option value="name">Name A–Z</option><option value="least">Least complete first</option><option value="most">Most complete first</option>
+            </select>
+          </div>
+          <section className="pane list">
+            {!drivers.length && <div className="pad">No drivers yet. Add them under <button className="btn sm plain" onClick={() => setTab("logins")}>Logins</button>.</div>}
+            {drivers.length > 0 && !shown.length && <div className="pad muted">No driver matches “{q}”.</div>}
+            {shown.map(d => (
+              <DriverRow key={d.id} d={d} s={stats[d.id]} quarter={quarter} uploads={uploads.filter(u => u.driver_id === d.id)} drivers={drivers} onChanged={reload} say={say} />))}
+          </section>
+          <p className="muted small" style={{ margin: 0 }}>Tap a driver to see every subdivision they've driven and scanned, recent check-offs, and their drive sheet.</p>
+        </>)}
+
+      {tab === "logins" && <>
       <section className="pane">
         <div className="pane-h"><h2>Add a driver</h2></div>
         <form className="pad stack" onSubmit={create}>
@@ -125,6 +160,7 @@ function Drivers() {
           <tbody>{people.map(p => <Row key={p.id} p={p} me={profile!.id} onDone={m => { say(m); reload(); }} />)}</tbody>
         </table></div>
       </section>
+      </>}
       {toast}
     </div>
   );

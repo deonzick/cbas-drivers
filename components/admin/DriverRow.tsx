@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { Profile, Quarter } from "@/components/Auth";
 import type { DriverStats, SubProgress, Upload } from "@/lib/useAdminData";
 import { api, supabase } from "@/lib/supabase";
-import { dueText, fmtDate, sectionLabel } from "@/lib/format";
+import { sectionLabel } from "@/lib/format";
 
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 const when = (iso: string) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -53,17 +53,15 @@ export function AddSubdivision({ driverId, quarter, onDone }: { driverId: string
 
 /** One driver on the manager dashboard (or the read-only archive): a summary line that
  *  opens into what they've driven and what they've scanned, subdivision by subdivision. */
-export function DriverRow({ d, s, quarter, due, isOverride, uploads, drivers, onChanged, say, readOnly = false }: {
-  d: Profile; s?: DriverStats; quarter: Quarter; due: string | null; isOverride: boolean; uploads: Upload[];
+export function DriverRow({ d, s, quarter, uploads, drivers, onChanged, say, readOnly = false }: {
+  d: Profile; s?: DriverStats; quarter: Quarter; uploads: Upload[];
   drivers: Profile[]; onChanged: () => void; say: (m: string) => void; readOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [events, setEvents] = useState<Event[] | null>(null);
-  const [dueInput, setDueInput] = useState(isOverride ? due || "" : "");
   const [confirm, setConfirm] = useState<string | null>(null);
   const [moveTo, setMoveTo] = useState<Record<string, string>>({});
   const [view, setView] = useState<View>("all");
-  const dt = !readOnly && due ? dueText(due) : null;
   const complete = !!s && s.subs > 0 && s.scanned === s.subs;
 
   useEffect(() => {
@@ -96,7 +94,7 @@ export function DriverRow({ d, s, quarter, due, isOverride, uploads, drivers, on
           <div className="row" style={{ gap: 6 }}><b>{d.full_name}</b>
             {complete && <span className="pill scan">Complete</span>}
             {!d.active && <span className="pill warn">Off</span>}
-            {dt && !complete && <span className={`pill ${dt.tone === "ok" ? "" : dt.tone}`} style={dt.tone === "ok" ? { background: "var(--sunk)" } : undefined}>{dt.text}</span>}</div>
+</div>
           <div className="muted small">{s
             ? `Driven ${s.subsDone}/${s.subs} · Scanned ${s.scanned}/${s.subs} · ${s.secsDone}/${s.secs} sections${!readOnly && s.doneToday ? ` · ${s.doneToday} today` : ""}`
             : `No ${quarter.label} drive sheet${readOnly ? "" : " yet"}`}</div>
@@ -109,15 +107,6 @@ export function DriverRow({ d, s, quarter, due, isOverride, uploads, drivers, on
       </summary>
       {open && (
         <div className="acc-body">
-          {!readOnly && (
-            <div className="row" style={{ alignItems: "flex-end" }}>
-              <div className="field" style={{ width: 190 }}><label htmlFor={`due-${d.id}`}>Due date for {d.full_name.split(" ")[0]}</label>
-                <input id={`due-${d.id}`} type="date" value={dueInput} onChange={e => setDueInput(e.target.value)} /></div>
-              <button className="btn sm" onClick={() => call("/api/admin/quarter", { action: "driver-due", quarterId: quarter.id, driverId: d.id, dueDate: dueInput || null }, "Due date saved")}>Save</button>
-              {isOverride && <button className="btn sm ghost" onClick={() => { setDueInput(""); call("/api/admin/quarter", { action: "driver-due", quarterId: quarter.id, driverId: d.id, dueDate: null }, "Using the quarter due date"); }}>Use quarter date</button>}
-              <span className="muted small">{isOverride ? "Custom date for this driver." : quarter.due_date ? `Using the quarter date (${fmtDate(quarter.due_date)}).` : "No due date set."}</span>
-            </div>)}
-
           {s ? (<>
             <div className="seg" role="group" aria-label="Show">
               <button aria-pressed={view === "all"} onClick={() => setView("all")}>All ({s.subs})</button>
