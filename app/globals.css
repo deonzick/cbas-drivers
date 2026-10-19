@@ -256,3 +256,16 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 .topbar .signout { background: none; border: 1.5px solid currentColor; color: inherit; border-radius: 6px; padding: 5px 10px; font-weight: 600; font-size: 14px; cursor: pointer; opacity: .85; }
 .topbar .signout:hover { opacity: 1; }
+
+/* street map */
+.mlmap { position: relative; aspect-ratio: auto; height: min(62vh, 520px); max-height: none; }
+@media (max-width: 899px) { .mlmap { height: 58vh; } }
+.legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1.5px solid #fff; box-shadow: 0 0 0 1px var(--line); }
+.mpop { display: grid; gap: 6px; font-family: var(--f-body); color: #0e2230; }
+.mpop b { font-size: 14px; }
+.mpop-meta { font-size: 12.5px; color: #5f6b72; }
+.mpop-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.mpop .btn { min-height: 32px; }
+.mpin { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; font: 700 13px var(--f-display); color: #fff; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.mpin.start { background: #2a7a4b; } .mpin.end { background: #0e2230; }
+.maplibregl-popup-content { border-radius: 10px !important; padding: 12px 14px !important; }

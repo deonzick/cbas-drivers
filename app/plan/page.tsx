@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DriverShell } from "@/components/Shell";
 import { useAuth, type Place } from "@/components/Auth";
-import RouteMap from "@/components/RouteMap";
+import SubdivisionMap, { type MapSub } from "@/components/SubdivisionMap";
 import { AddressSearch, currentPosition } from "@/components/PlaceField";
 import { api, supabase } from "@/lib/supabase";
 import { cache } from "@/lib/offline";
@@ -72,6 +72,14 @@ function Planner() {
   const picked = open.filter(s => chosen.has(s.id));
   const pickedSecs = picked.reduce((n, s) => n + openCount(s), 0);
   const onSite = pickedSecs * times.perSection + picked.length * times.perStop;
+
+  // Everything this driver has, for the map: what's left to drive, what needs a scan, what's done.
+  const mapSubs = useMemo<MapSub[]>(() => subs.filter(hasPin).map(s => ({
+    id: s.id, name: s.name, lat: s.lat as number, lng: s.lng as number, total: s.sections.length, open: openCount(s),
+    state: !isSubDone(s) ? "todrive" : s.scanned_at ? "complete" : "toscan",
+  })), [subs]);
+  const planOrder = useMemo(() => todayPlan && !editing ? new Map(todayPlan.stops.map((s, i) => [s.id, i + 1])) : undefined, [todayPlan, editing]);
+  const mapPicked = useMemo(() => planOrder ? new Set(planOrder.keys()) : chosen, [planOrder, chosen]);
 
   const toggle = (ids: string[], on: boolean) => setChosen(prev => { const n = new Set(prev); ids.forEach(id => on ? n.add(id) : n.delete(id)); return n; });
 
@@ -201,10 +209,10 @@ function Planner() {
         </section>
 
         <section className="pane" id="result">
-          <RouteMap origin={todayPlan?.origin} destination={todayPlan?.destination}
-            stops={todayPlan?.stops || picked.filter(hasPin)}
-            others={open.filter(s => !(todayPlan ? todayPlan.stops.some(p => p.id === s.id) : chosen.has(s.id))).filter(hasPin) as any}
-            polylines={todayPlan?.polylines} />
+          <SubdivisionMap subs={mapSubs} picked={mapPicked} order={planOrder}
+            origin={planOrder ? todayPlan?.origin : null} destination={planOrder ? todayPlan?.destination : null}
+            polylines={planOrder ? todayPlan?.polylines : undefined}
+            onToggle={planOrder ? undefined : (id => toggle([id], !chosen.has(id)))} />
           {!todayPlan ? (
             <div className="pad muted">{plan ? `Your last route was for ${new Date(plan.createdAt).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}. Pick today's subdivisions to plan a new one.` : "Pick today's subdivisions and a start point. Stops are put in the quickest order using live drive times and each subdivision's section count."}</div>
           ) : (
