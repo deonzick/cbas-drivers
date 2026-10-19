@@ -50,13 +50,13 @@ function LoginForm() {
             <label htmlFor="pass">Password</label>
             <input id="pass" type="password" autoComplete="current-password" value={pass} onChange={e => setPass(e.target.value)} required />
           </div>
-          <label className="remember">
-            <input type="checkbox" className="check sm" checked={remember} onChange={e => setRem(e.target.checked)} />
-            Keep me signed in on this device
+          <label className="remember" style={{ justifyContent: "space-between" }}>
+            Keep me signed in
+            <input type="checkbox" className="toggle" checked={remember} onChange={e => setRem(e.target.checked)} />
           </label>
           {err && <div className="alert err" role="alert">{err}</div>}
           <button className="btn primary big block" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
-          <p className="muted small" style={{ margin: 0 }}>Forgot your password? Ask your manager to reset it.</p>
+          <p className="muted small" style={{ margin: 0, textAlign: "center" }}>Forgot your password? Ask your manager to reset it.</p>
         </div>
         <InstallPrompt />
       </form>

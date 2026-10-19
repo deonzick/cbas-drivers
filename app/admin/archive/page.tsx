@@ -46,27 +46,27 @@ function Archive() {
   }
 
   if (!quarters.length) return (
-    <div className="stack"><div><div className="eyebrow">Archive</div><h1>Past quarters</h1></div>
+    <div className="stack"><header className="page-h"><div className="eyebrow">Read-only</div><h1>Archive</h1></header>
       <div className="notice">Closed quarters appear here, read-only. Close the active quarter from the Overview page at quarter end.</div></div>
   );
 
   return (
     <div className="stack">
-      <div><div className="eyebrow">Archive · read-only</div><h1>Past quarters</h1></div>
+      <header className="page-h"><div className="eyebrow">Past quarters · read-only</div><h1>Archive</h1></header>
       <div className="seg" role="group" aria-label="Quarter">
         {quarters.map(q => <button key={q.id} aria-pressed={sel?.id === q.id} onClick={() => { setSel(q); setPurging(false); }}>{q.label}</button>)}
       </div>
       {sel && (<>
-        <section className="summary">
-          <div><div className="eyebrow">Closed {new Date(sel.closed_at!).toLocaleDateString()}{sel.due_date ? ` · was due ${fmtDate(sel.due_date)}` : ""}</div><h1>{sel.label}</h1></div>
-          <div><div className="stat">{t.driven}<small> / {t.subs}</small></div><div className="eyebrow">Driven</div></div>
-          <div><div className="stat">{t.scanned}<small> / {t.subs}</small></div><div className="eyebrow">Scanned</div></div>
-          <div><div className="stat">{pct(t.scanned, t.subs)}<small>%</small></div><div className="eyebrow">Complete</div></div>
-          {!purged && <button className="btn" onClick={downloadCsv}>Download {sel.label} CSV</button>}
-        </section>
+        <div className="row"><span className="grow muted small">Closed {new Date(sel.closed_at!).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}{sel.due_date ? ` · was due ${fmtDate(sel.due_date)}` : ""}</span>
+          {!purged && <button className="btn sm" onClick={downloadCsv}>Download CSV</button>}</div>
+        <div className="tiles compact" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+          <div className="tile"><span className="tile-k">Driven</span><span className="tile-v">{t.driven}<small>/{t.subs}</small></span><div className="bar"><i style={{ width: `${pct(t.driven, t.subs)}%` }} /></div></div>
+          <div className="tile"><span className="tile-k">Scanned</span><span className="tile-v">{t.scanned}<small>/{t.subs}</small></span><div className="bar"><i style={{ width: `${pct(t.scanned, t.subs)}%`, background: "var(--scan)" }} /></div></div>
+          <div className="tile"><span className="tile-k">Complete</span><span className="tile-v">{pct(t.scanned, t.subs)}<small>%</small></span><div className="bar"><i style={{ width: `${pct(t.scanned, t.subs)}%`, background: "var(--scan)" }} /></div></div>
+        </div>
 
-        <section className="pane">
-          <div className="pane-h"><h2 className="grow">Drivers</h2></div>
+        <div className="group-label" style={{ marginBottom: -9 }}>Drivers</div>
+        <section className="pane list">
           {loading && <div className="pad muted">Loading…</div>}
           {purged ? (
             <div className="tablewrap"><table><thead><tr><th>Driver</th><th className="num">Subdivisions</th><th className="num">Driven</th><th className="num">Scanned</th></tr></thead>
@@ -79,7 +79,7 @@ function Archive() {
 
         {!purged && (
           <section className="pane pad stack">
-            <h2>Free up space (optional)</h2>
+            <h3>Free up space (optional)</h3>
             <p className="muted small" style={{ margin: 0 }}>Deletes {sel.label}'s subdivision detail and uploaded PDFs for good. The totals above are kept. Download the CSV first. You won't need this for a long time: ~800 subdivisions a quarter is very little data.</p>
             {!purging ? <div><button className="btn danger" onClick={() => setPurging(true)}>Delete {sel.label} detail…</button></div> : (
               <div className="confirm-box">

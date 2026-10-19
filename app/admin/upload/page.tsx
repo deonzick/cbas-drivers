@@ -87,25 +87,27 @@ function Upload() {
 
   return (
     <div className="stack">
-      <div><div className="eyebrow">{quarter.label}</div><h1>Upload drive sheets</h1>
-        <p className="muted" style={{ maxWidth: 680 }}>Drop one PDF per driver (the assignment sheet printed from Excel), or the Excel file itself. A file listing several drivers in its Driver column is split automatically. You'll see a preview before anything is saved.</p></div>
+      <header className="page-h"><div className="eyebrow">{quarter.label} drive sheets</div><h1>Upload</h1></header>
 
       <div className={`drop ${over ? "over" : ""}`} role="button" tabIndex={0}
         onClick={() => input.current?.click()} onKeyDown={e => { if (e.key === "Enter") input.current?.click(); }}
         onDragOver={e => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
         onDrop={e => { e.preventDefault(); setOver(false); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); }}>
-        <b style={{ fontSize: 16 }}>Drop PDFs here or tap to choose</b>
-        <span className="muted small">PDF, XLSX or CSV · columns: County, City, CBAS_Mkt, CBAS_SubMkt, Subdivision, New / Active / BTR Section(s), Latitude, Longitude, Driver</span>
+        <span className="drop-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15V3M7 8l5-5 5 5" /><path d="M4 14v4a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-4" /></svg></span>
+        <b style={{ fontSize: 17, fontWeight: 600 }}>Choose Files</b>
+        <span className="muted small">or drop them here · PDF, XLSX or CSV</span>
         <input ref={input} type="file" multiple accept=".pdf,.xlsx,.xls,.csv,application/pdf" hidden onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
       </div>
 
-      <div className="row">
-        <span className="label">When a driver already has a {quarter.label} list:</span>
-        <div className="seg" role="group">
-          <button aria-pressed={mode === "replace"} onClick={() => setMode("replace")}>Replace it</button>
-          <button aria-pressed={mode === "add"} onClick={() => setMode("add")}>Add to it</button>
+      <p className="group-foot" style={{ marginTop: -8 }}>One PDF per driver (the assignment sheet printed from Excel), or the Excel file itself. A file listing several drivers in its Driver column is split automatically. You'll see a preview before anything is saved.</p>
+
+      <div>
+        <div className="group-label">If a driver already has a {quarter.label} list</div>
+        <div className="seg wide" role="group">
+          <button aria-pressed={mode === "replace"} onClick={() => setMode("replace")}>Replace It</button>
+          <button aria-pressed={mode === "add"} onClick={() => setMode("add")}>Add to It</button>
         </div>
-        <span className="muted small">{mode === "replace" ? "Check-offs on sections that appear in both are kept." : "New rows are added alongside the current list."}</span>
+        <p className="group-foot">{mode === "replace" ? "Check-offs on sections that appear in both are kept." : "New rows are added alongside the current list."}</p>
       </div>
 
       {jobs.map(job => {
@@ -115,12 +117,13 @@ function Upload() {
         return (
           <section className="pane" key={job.id}>
             <div className="pane-h">
-              <div className="grow" style={{ minWidth: 0 }}><b style={{ overflowWrap: "anywhere" }}>{job.file.name}</b>
+              <span className={`file-ic ${/\.(xlsx?|csv)$/i.test(job.file.name) ? "xls" : ""}`}>{(job.file.name.split(".").pop() || "").toUpperCase().slice(0, 4)}</span>
+              <div className="grow" style={{ minWidth: 0 }}><b style={{ overflowWrap: "anywhere", fontWeight: 600 }}>{job.file.name}</b>
                 <div className="muted small">
                   {job.status === "reading" && "Reading…"}
                   {job.status === "error" && <span style={{ color: "var(--danger)" }}>{job.error}</span>}
                   {(job.status === "ready" || job.status === "saving") && `${rows.length} subdivisions · ${secCount} sections${warnCount ? ` · ${warnCount} need a look` : ""}`}
-                  {job.status === "saved" && <span style={{ color: "var(--sign)" }}>Saved — {job.saved}</span>}
+                  {job.status === "saved" && <span style={{ color: "var(--scan)" }}>✓ Saved — {job.saved}</span>}
                 </div></div>
               {job.result && <button className="btn sm ghost" onClick={() => patch(job.id, j => ({ open: !j.open }))}>{job.open ? "Hide" : "Show"} preview</button>}
               {job.status !== "saved" && <button className="btn sm ghost" onClick={() => setJobs(js => js.filter(j => j.id !== job.id))}>Discard</button>}
@@ -173,12 +176,15 @@ function Upload() {
               </table></div>)}
           </section>);
       })}
-      <div className="legend"><span><i className="k-new" />New section</span><span><i className="k-btr" />BTR section</span><span>Grey = active section</span></div>
+      {jobs.length > 0 && <div className="legend" style={{ padding: "0 16px" }}><span><i className="k-new" />New section</span><span><i className="k-btr" />BTR section</span><span>Grey = active section</span></div>}
 
-      <section className="pane pad stack" style={{ gap: 8 }}>
-        <h2>Optional: section pins</h2>
+      <div>
+        <div className="group-label">Section pins (optional)</div>
+        <section className="pane pad">
         <p className="muted small" style={{ margin: 0 }}>When you're ready to add section coordinates, drop a file here with the columns <span className="mono">Subdivision, Section, Latitude, Longitude</span> (one row per section, e.g. “Lago Mar, P8S9A, 29.41, -95.04”). Sections with a pin get their own Go button for drivers. Pins are remembered across quarters, so you only upload them once.</p>
-      </section>
+        </section>
+      </div>
+      <p className="group-foot">Columns: County, City, CBAS_Mkt, CBAS_SubMkt, Subdivision, New / Active / BTR Section(s), Latitude, Longitude, Driver.</p>
     </div>
   );
 }

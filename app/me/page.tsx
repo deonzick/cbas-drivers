@@ -8,11 +8,18 @@ import { getRemember, setRemember, supabase } from "@/lib/supabase";
 import { readQueue } from "@/lib/offline";
 import { InstallPrompt } from "@/components/PhoneBits";
 
-function SavedPlace({ kind }: { kind: "home" | "work" }) {
+const ICONS = {
+  home: <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2 2.8 11a1 1 0 0 0 1.3 1.5l.9-.8V20a1 1 0 0 0 1 1h4.5v-5.5h3V21H18a1 1 0 0 0 1-1v-8.3l.9.8a1 1 0 0 0 1.3-1.5z" /></svg>,
+  work: <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 4a2 2 0 0 0-2 2v1H4.5A1.5 1.5 0 0 0 3 8.5V12h18V8.5A1.5 1.5 0 0 0 19.5 7H17V6a2 2 0 0 0-2-2zm0 2h6v1H9zM3 13.5v5A1.5 1.5 0 0 0 4.5 20h15a1.5 1.5 0 0 0 1.5-1.5v-5h-7v1h-4v-1z" /></svg>,
+  start: <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.7 3.3a1 1 0 0 0-1.1-.2l-16 7a1 1 0 0 0 .1 1.9l6.6 1.7 1.7 6.6a1 1 0 0 0 1.9.1l7-16a1 1 0 0 0-.2-1.1z" /></svg>,
+  key: <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.5 3a6.5 6.5 0 0 0-6.2 8.5L3 16.8V21h4.2v-2h2v-2h2l1.3-1.3A6.5 6.5 0 1 0 14.5 3zm2 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" /></svg>,
+};
+const Chev = () => <svg className="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 6l6 6-6 6" /></svg>;
+
+function SavedPlace({ kind, say }: { kind: "home" | "work"; say: (m: string) => void }) {
   const { profile, reload } = useAuth();
   const [editing, setEditing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [toast, say] = useToast();
   const place = profile?.[kind];
   const title = kind === "home" ? "Home" : "Work";
 
@@ -27,28 +34,38 @@ function SavedPlace({ kind }: { kind: "home" | "work" }) {
     catch (e: any) { setErr(e.message); }
   }
   return (
-    <div className="card">
-      <div className="row"><h3 className="grow">{title}</h3>
-        {place && !editing && <><button className="btn sm" onClick={() => setEditing(true)}>Change</button><button className="btn sm ghost" onClick={() => save(null)}>Remove</button></>}</div>
-      {place && !editing ? <div className="small">{place.address}</div> : (
-        <div className="stack" style={{ gap: 8 }}>
+    <>
+      <button type="button" className="cell" style={{ ["--sep-inset" as any]: "58px" }} onClick={() => setEditing(!editing)} aria-expanded={editing}>
+        <span className="icon-sq" style={{ background: kind === "home" ? "#007aff" : "#a2845e" }}>{ICONS[kind]}</span>
+        <span className="cell-t"><span>{title}</span><span className="cell-sub">{place ? place.address : "Not set"}</span></span>
+        {!place && <span className="cell-v" style={{ color: "var(--sign)" }}>Add</span>}
+        <Chev />
+      </button>
+      {editing && (
+        <div className="cell-body">
           <AddressSearch onPick={p => save({ ...p, label: title })} />
-          <div className="row"><button className="btn sm" onClick={useHere}>Use where I am now</button>
-            {editing && <button className="btn sm ghost" onClick={() => setEditing(false)}>Cancel</button>}</div>
+          <div className="row"><button className="btn sm" onClick={useHere}>Use Where I Am Now</button>
+            {place && <button className="btn sm danger" onClick={() => save(null)}>Remove</button>}
+            <button className="btn sm plain" onClick={() => setEditing(false)}>Cancel</button></div>
+          {err && <div className="alert err">{err}</div>}
         </div>)}
-      {err && <div className="alert err">{err}</div>}
-      {toast}
-    </div>
+    </>
   );
 }
 
-function DefaultStart() {
-  const { profile, reload } = useAuth();
+function Me() {
+  const { profile, signOut, reload } = useAuth();
+  const router = useRouter();
   const [toast, say] = useToast();
+  const [remember, setRem] = useState(getRemember());
+  const [confirmOut, setConfirmOut] = useState(false);
   const [picking, setPicking] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const pending = profile ? readQueue(profile.id).length : 0;
   const cur = profile?.default_start || "home";
-  async function save(kind: string, place?: Place | null) {
+  const initials = (profile?.full_name || "?").split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+
+  async function saveStart(kind: string, place?: Place | null) {
     setErr(null);
     const patch: Record<string, unknown> = { default_start: kind };
     if (place !== undefined) patch.start_place = place;
@@ -56,56 +73,63 @@ function DefaultStart() {
     if (error) return setErr(error.message);
     await reload(); setPicking(false); say("Default start saved");
   }
-  const opts: [string, string, boolean][] = [["home", "Home", !profile?.home], ["work", "Work", !profile?.work], ["current", "Where I am", false], ["custom", "Another place", false]];
-  return (
-    <section className="pane pad stack" style={{ gap: 10 }}>
-      <h2>Where you start your day</h2>
-      <p className="muted small" style={{ margin: 0 }}>Plan today starts from here unless you change it for that day.</p>
-      <div className="chips">{opts.map(([k, label, dis]) => (
-        <button key={k} className="chip" aria-pressed={cur === k} disabled={dis}
-          onClick={() => k === "custom" ? (profile?.start_place ? save("custom") : setPicking(true)) : save(k)}>{label}</button>))}</div>
-      {(!profile?.home || !profile?.work) && <span className="muted small">Save Home or Work above to choose them.</span>}
-      {cur === "custom" && profile?.start_place && !picking && (
-        <div className="row small"><span className="grow">{profile.start_place.address}</span><button className="btn sm ghost" onClick={() => setPicking(true)}>Change</button></div>)}
-      {picking && <><AddressSearch onPick={p => save("custom", { ...p, label: "My start" })} /><div><button className="btn sm ghost" onClick={() => setPicking(false)}>Cancel</button></div></>}
-      {err && <div className="alert err">{err}</div>}
-      {toast}
-    </section>
-  );
-}
-
-function Me() {
-  const { profile, signOut } = useAuth();
-  const router = useRouter();
-  const [remember, setRem] = useState(getRemember());
-  const [confirmOut, setConfirmOut] = useState(false);
-  const pending = profile ? readQueue(profile.id).length : 0;
 
   return (
-    <div className="stack" style={{ maxWidth: 720 }}>
-      <div><div className="eyebrow">Signed in as {profile?.username || "driver"}</div><h1>{profile?.full_name || "Me"}</h1></div>
+    <div className="stack narrow">
+      <header className="page-h"><h1>Me</h1></header>
+      <div className="group">
+        <div className="profile-card"><span className="avatar">{initials}</span>
+          <div className="grow"><b>{profile?.full_name || "Driver"}</b><span className="muted small">{profile?.username || ""}{profile?.role === "admin" ? " · Manager" : " · Driver"}</span></div></div>
+      </div>
       <InstallPrompt />
-      <section className="stack" style={{ gap: 10 }}>
-        <h2>Saved places</h2>
-        <p className="muted small" style={{ margin: 0 }}>Used as start and finish points when you plan a day. Only you can see these.</p>
-        <div className="cards"><SavedPlace kind="home" /><SavedPlace kind="work" /></div>
-      </section>
-      <DefaultStart />
-      <section className="pane pad stack">
-        <h2>Sign-in</h2>
-        <label className="remember">
-          <input type="checkbox" className="check sm" checked={remember} onChange={e => { setRem(e.target.checked); setRemember(e.target.checked); }} />
-          Keep me signed in on this phone
-        </label>
-        <p className="muted small" style={{ margin: 0 }}>Your manager sets your username and password. If you forget it, ask them to reset it.</p>
-        {confirmOut ? (
-          <div className="confirm-box">
-            {pending > 0 && <b>{pending} check-off{pending === 1 ? " hasn't" : "s haven't"} synced yet. They stay on this phone and sync next time you sign in here.</b>}
-            <div className="row"><button className="btn danger solid" onClick={async () => { await signOut(); router.replace("/login"); }}>Sign out</button>
-              <button className="btn ghost" onClick={() => setConfirmOut(false)}>Stay signed in</button></div>
-          </div>
-        ) : <div><button className="btn danger" onClick={() => setConfirmOut(true)}>Sign out</button></div>}
-      </section>
+
+      <div>
+        <div className="group-label">Saved places</div>
+        <div className="group"><SavedPlace kind="home" say={say} /><SavedPlace kind="work" say={say} /></div>
+        <p className="group-foot">Used as start and finish points when you plan a day. Only you can see these.</p>
+      </div>
+
+      <div>
+        <div className="group-label">Planning</div>
+        <div className="group">
+          <label className="cell" style={{ ["--sep-inset" as any]: "58px" }}>
+            <span className="icon-sq" style={{ background: "#34c759" }}>{ICONS.start}</span>
+            <span className="cell-t">Start my day from</span>
+            <select className="cell-select" value={cur} onChange={e => { const k = e.target.value; k === "custom" ? (profile?.start_place ? saveStart("custom") : setPicking(true)) : saveStart(k); }}>
+              <option value="home" disabled={!profile?.home}>Home</option>
+              <option value="work" disabled={!profile?.work}>Work</option>
+              <option value="current">Where I Am</option>
+              <option value="custom">Another Place</option>
+            </select>
+          </label>
+          {cur === "custom" && profile?.start_place && !picking && (
+            <div className="cell sep"><span className="cell-t"><span className="cell-sub">{profile.start_place.address}</span></span><button className="btn sm plain" onClick={() => setPicking(true)}>Change</button></div>)}
+          {picking && <div className="cell-body sep" style={{ paddingTop: 10 }}><AddressSearch onPick={p => saveStart("custom", { ...p, label: "My start" })} /><div><button className="btn sm plain" onClick={() => setPicking(false)}>Cancel</button></div></div>}
+        </div>
+        {err && <div className="alert err" style={{ marginTop: 8 }}>{err}</div>}
+        <p className="group-foot">Plan Today starts from here unless you change it for that day.{(!profile?.home || !profile?.work) ? " Save Home or Work above to choose them." : ""}</p>
+      </div>
+
+      <div>
+        <div className="group-label">Account</div>
+        <div className="group">
+          <label className="cell" style={{ ["--sep-inset" as any]: "58px" }}>
+            <span className="icon-sq" style={{ background: "#8e8e93" }}>{ICONS.key}</span>
+            <span className="cell-t">Keep me signed in</span>
+            <input type="checkbox" className="toggle" checked={remember} onChange={e => { setRem(e.target.checked); setRemember(e.target.checked); }} />
+          </label>
+          <button type="button" className="cell center danger" onClick={() => setConfirmOut(true)}>Sign Out</button>
+        </div>
+        <p className="group-foot">Your manager sets your username and password. If you forget it, ask them to reset it.</p>
+      </div>
+
+      {confirmOut && (
+        <div className="confirm-box">
+          <b>{pending > 0 ? `${pending} check-off${pending === 1 ? " hasn't" : "s haven't"} synced yet. They stay on this phone and sync next time you sign in here.` : "Sign out of CBAS Drivers on this phone?"}</b>
+          <div className="row"><button className="btn danger solid" onClick={async () => { await signOut(); router.replace("/login"); }}>Sign Out</button>
+            <button className="btn gray" onClick={() => setConfirmOut(false)}>Cancel</button></div>
+        </div>)}
+      {toast}
     </div>
   );
 }

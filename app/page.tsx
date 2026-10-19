@@ -7,8 +7,7 @@ import { isComplete, isSubDone, openCount, useDrive, type Subdivision } from "@/
 import { supabase } from "@/lib/supabase";
 import { cache } from "@/lib/offline";
 import { hasPin, mapsLink } from "@/lib/geo";
-import { isToday, sectionShort } from "@/lib/format";
-import { DueBanner } from "@/components/DueBanner";
+import { dueText, fmtDate, isToday, sectionShort } from "@/lib/format";
 import type { PlanResult } from "@/lib/route";
 
 const stamp = (iso: string) => new Date(iso).toLocaleString([], { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -17,9 +16,9 @@ function Ring({ done, total }: { done: number; total: number }) {
   const r = 18, c = 2 * Math.PI * r, p = total ? done / total : 0;
   return (
     <svg className="ring" viewBox="0 0 44 44" aria-label={`${done} of ${total} sections done`}>
-      <circle cx="22" cy="22" r={r} fill="none" stroke="var(--sunk)" strokeWidth="5" />
-      <circle cx="22" cy="22" r={r} fill="none" stroke="var(--sign)" strokeWidth="5" strokeDasharray={`${c * p} ${c}`} transform="rotate(-90 22 22)" strokeLinecap="round" />
-      <text x="22" y="26" textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--fg)" fontFamily="var(--f-display)">{done}/{total}</text>
+      <circle cx="22" cy="22" r={r} fill="none" stroke="var(--fill-2)" strokeWidth="5" />
+      {p > 0 && <circle cx="22" cy="22" r={r} fill="none" stroke="var(--sign)" strokeWidth="5" strokeDasharray={`${c * p} ${c}`} transform="rotate(-90 22 22)" strokeLinecap="round" />}
+      <text x="22" y="26" textAnchor="middle" fontSize="11.5" fontWeight="600" fill="var(--fg)" fontFamily="var(--f-body)">{done}/{total}</text>
     </svg>
   );
 }
@@ -34,7 +33,7 @@ function SubRow({ s, open, onToggle, stopNo, onSections, onScanned }: {
   const hasNew = s.sections.some(x => x.kinds.includes("new"));
   const hasBtr = s.sections.some(x => x.kinds.includes("btr"));
   return (
-    <li id={`s-${s.id}`} className={`sub ${complete && s.scanned_at ? "is-done" : ""}`}>
+    <li id={`s-${s.id}`} className={`sub ${complete && s.scanned_at ? "is-done" : ""}`} data-open={open || undefined}>
       <div className="sub-row" onClick={onToggle} role="button" aria-expanded={open} tabIndex={0}
         onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }}>
         <div style={{ minWidth: 0 }}>
@@ -53,7 +52,8 @@ function SubRow({ s, open, onToggle, stopNo, onSections, onScanned }: {
             {!hasPin(s) && <span className="pill warn">No pin</span>}
           </div>
         </div>
-        <Ring done={done} total={s.sections.length} />
+        <span className="sub-trail"><Ring done={done} total={s.sections.length} />
+          <svg className="sub-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 6l6 6-6 6" /></svg></span>
       </div>
       {open && (
         <div className="secs">
@@ -75,20 +75,20 @@ function SubRow({ s, open, onToggle, stopNo, onSections, onScanned }: {
             })}
           </div>
           <div className="row">
-            {hasPin(s) && <a className="btn primary" href={mapsLink(s)} target="_blank" rel="noopener">Navigate</a>}
+            {hasPin(s) && <a className="btn primary" style={{ flex: "1 1 140px" }} href={mapsLink(s)} target="_blank" rel="noopener">Navigate</a>}
             {!complete && (confirmAll
               ? <span className="row"><span className="small">Check all {s.sections.length - done} remaining?</span>
                   <button className="btn sm primary" onClick={() => { onSections(s.sections.filter(x => !x.completed_at).map(x => x.id), true); setConfirmAll(false); }}>Check all</button>
                   <button className="btn sm ghost" onClick={() => setConfirmAll(false)}>Cancel</button></span>
-              : <button className="btn sm ghost" onClick={() => setConfirmAll(true)}>Check all sections</button>)}
+              : <button className="btn" style={{ flex: "1 1 140px" }} onClick={() => setConfirmAll(true)}>Check All</button>)}
           </div>
           {complete && (
             <label className={`scanbox ${s.scanned_at ? "is-done" : ""}`}>
               <input type="checkbox" className="check" checked={!!s.scanned_at} onChange={e => onScanned(e.target.checked)} />
-              <span className="grow"><b>Scanned into TurboScan</b>
+              <span className="grow"><b style={{ fontWeight: 600 }}>Scanned into TurboScan</b>
                 <span className="small muted" style={{ display: "block" }}>{s.scanned_at ? `✓ ${stamp(s.scanned_at)}` : "Check once this subdivision's plat is scanned."}</span></span>
             </label>)}
-          <p className="muted small" style={{ margin: 0 }}>Tap a checked section again to uncheck it. Each change is time-stamped.{complete && s.scanned_at ? " Unchecking a section also clears Scanned." : ""}</p>
+          <p className="group-foot" style={{ padding: 0 }}>Tap a checked section again to uncheck it. Each change is time-stamped.{complete && s.scanned_at ? " Unchecking a section also clears Scanned." : ""}</p>
         </div>
       )}
     </li>
@@ -143,66 +143,88 @@ function Home() {
   }
 
   const needScan = doneSubs - scanned;
-  if (!quarter) return <div className="notice"><h2>No drive assigned yet</h2><p className="muted">Your manager hasn't started this quarter's drives. Check back once they upload your list.</p></div>;
-  if (loading && !subs.length) return <p className="muted">Loading your subdivisions…</p>;
+  if (!quarter) return <div className="stack"><header className="page-h"><h1>My List</h1></header><div className="notice"><h2>No drive assigned yet</h2><p className="muted">Your manager hasn't started this quarter's drives. Check back once they upload your list.</p></div></div>;
+  if (loading && !subs.length) return <div className="stack"><header className="page-h"><h1>My List</h1></header><p className="muted">Loading your subdivisions…</p></div>;
+
+  const due = dueDate ? dueText(dueDate) : null;
+  const R = 46, C = 2 * Math.PI * R;
+  const arc = (v: number) => `${subs.length ? (v / subs.length) * C : 0} ${C}`;
+  const counts = { open: subs.length - doneSubs, scan: needScan, done: scanned, all: subs.length };
 
   return (
-    <>
-      <DueBanner dueDate={dueDate} />
-      <section className="summary">
-        <div><div className="eyebrow">{quarter.label} drive</div><h1>{profile?.full_name?.split(" ")[0] || "Your"}’s list</h1></div>
-        <div><div className="stat">{doneSubs}<small> / {subs.length}</small></div><div className="eyebrow">Driven</div></div>
-        <div><div className="stat">{scanned}<small> / {subs.length}</small></div><div className="eyebrow">Scanned</div></div>
-        <div><div className="stat">{doneSecs}<small> / {totalSecs}</small></div><div className="eyebrow">Sections</div></div>
-        <div className="meter"><div className="row" style={{ justifyContent: "space-between" }}><span className="eyebrow">Complete (driven + scanned)</span><span className="mono">{pct}%</span></div><div className="bar"><i style={{ width: `${pct}%` }} /></div></div>
-      </section>
+    <div className="stack">
+      <header className="page-h">
+        <div className="eyebrow">{quarter.label} drive{dueDate ? ` · due ${fmtDate(dueDate, { weekday: "short", month: "short", day: "numeric" })}` : ""}</div>
+        <h1>My List</h1>
+      </header>
 
-      {error && <div className="alert err" style={{ marginBottom: 12 }}>{error}</div>}
+      {subs.length > 0 && (
+        <section className="hero" aria-label="Your progress">
+          <div className="hero-ring">
+            <svg viewBox="0 0 112 112" aria-hidden="true">
+              <circle cx="56" cy="56" r={R} fill="none" stroke="var(--fill-2)" strokeWidth="12" />
+              <circle cx="56" cy="56" r={R} fill="none" stroke="var(--c-partial)" strokeWidth="12" strokeLinecap="round" strokeDasharray={arc(doneSubs)} style={{ opacity: .55 }} />
+              <circle cx="56" cy="56" r={R} fill="none" stroke="var(--sign)" strokeWidth="12" strokeLinecap="round" strokeDasharray={arc(scanned)} />
+            </svg>
+            <div className="in"><b>{pct}%</b><span>complete</span></div>
+          </div>
+          <div className="hero-stats">
+            <div className="hero-stat"><i style={{ background: "var(--sign)" }} /><span>Complete</span><b>{scanned}<small>/{subs.length}</small></b></div>
+            <div className="hero-stat"><i style={{ background: "var(--c-partial)", opacity: .55 }} /><span>Driven</span><b>{doneSubs}<small>/{subs.length}</small></b></div>
+            <div className="hero-stat"><i style={{ background: "var(--fill)" }} /><span>Sections</span><b>{doneSecs}<small>/{totalSecs}</small></b></div>
+          </div>
+          {due && <div className="hero-due"><span className="muted">Due {fmtDate(dueDate!, { weekday: "long", month: "long", day: "numeric" })}</span><span className={`pill lg ${due.tone}`}>{due.text}</span></div>}
+        </section>)}
+
+      {error && <div className="alert err">{error}</div>}
 
       {nextStop ? (
-        <div className="pane pad row" style={{ marginBottom: 16, borderColor: "var(--amber)" }}>
-          <div className="grow"><div className="eyebrow">Next stop today</div>
-            <div className="sub-name">{nextStop.name}</div>
+        <section className="upnext">
+          <span className="kicker">Up next · stop {(todayPlan?.stops.findIndex(p => p.id === nextStop.id) ?? 0) + 1} of {todayPlan?.stops.length}</span>
+          <div><div className="sub-name">{nextStop.name}</div>
             <div className="meta">{openCount(nextStop)} section{openCount(nextStop) === 1 ? "" : "s"} left · {nextStop.city}</div></div>
-          <button className="btn" onClick={() => { setFilter("open"); setOpenId(nextStop.id); setTimeout(() => document.getElementById(`s-${nextStop.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50); }}>Sections</button>
-          {hasPin(nextStop) && <a className="btn primary" href={mapsLink(nextStop)} target="_blank" rel="noopener">Navigate</a>}
-        </div>
+          <div className="row">
+            <button className="btn" onClick={() => { setFilter("open"); setOpenId(nextStop.id); setTimeout(() => document.getElementById(`s-${nextStop.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50); }}>Sections</button>
+            {hasPin(nextStop) && <a className="btn primary" href={mapsLink(nextStop)} target="_blank" rel="noopener">Navigate</a>}
+          </div>
+        </section>
       ) : subs.length > doneSubs && (
-        <div className="pane pad row" style={{ marginBottom: 16 }}>
-          <div className="grow"><b>{todayPlan ? "Today's route is done." : "No route planned for today."}</b>
-            <div className="muted small">Pick the subdivisions you'll drive today and get them in the best order.</div></div>
-          <Link className="btn primary" href="/plan">Plan today</Link>
-        </div>
+        <section className="upnext">
+          <span className="kicker">{todayPlan ? "Today's route is done" : "No route for today"}</span>
+          <span className="muted small">Pick the subdivisions you'll drive today and get them in the best order.</span>
+          <div className="row"><Link className="btn primary" href="/plan">Plan today</Link></div>
+        </section>
       )}
 
       {subs.length === 0 ? (
         <div className="notice"><h2>Nothing assigned to you yet</h2><p className="muted">When your manager uploads your {quarter.label} drive sheet, your subdivisions show up here.</p></div>
-      ) : (
-        <section className="pane">
-          <div className="pane-h">
-            <div className="seg" role="group" aria-label="Show">
-              {(["open", "scan", "done", "all"] as const).map(f => (
-                <button key={f} aria-pressed={filter === f} onClick={() => setFilter(f)}>
-                  {f === "open" ? `To drive (${subs.length - doneSubs})` : f === "scan" ? `To scan (${needScan})` : f === "done" ? `Complete (${scanned})` : "All"}
-                </button>))}
-            </div>
-            <input type="search" placeholder="Search subdivisions" value={q} onChange={e => setQ(e.target.value)} style={{ flex: "1 1 180px", minHeight: 38 }} aria-label="Search subdivisions" />
+      ) : (<>
+        <div className="stack" style={{ gap: 10 }}>
+          <div className="seg wide" role="group" aria-label="Show">
+            {(["open", "scan", "done", "all"] as const).map(f => (
+              <button key={f} aria-pressed={filter === f} onClick={() => setFilter(f)}>
+                {f === "open" ? "To Drive" : f === "scan" ? "To Scan" : f === "done" ? "Done" : "All"}&nbsp;<span className="muted">{counts[f]}</span>
+              </button>))}
           </div>
-          <div className="pad legend" style={{ paddingBlock: 8 }}><span><i className="k-new" />New section</span><span><i className="k-btr" />BTR section</span><span>Tap a subdivision to check off sections</span></div>
-          {shown.length === 0 && <div className="pad muted">{filter === "done" ? "Nothing complete yet. A subdivision is complete once it's driven and scanned." : filter === "scan" ? "Nothing waiting to be scanned." : filter === "open" ? "Every subdivision is driven." : "No matches."}</div>}
-          {[...groups.entries()].map(([g, list]) => (
-            <div key={g}>
-              <div className="group-h"><span className="eyebrow">{g}</span><span className="eyebrow">{list.length}</span></div>
+          <input type="search" placeholder="Search" value={q} onChange={e => setQ(e.target.value)} aria-label="Search subdivisions" />
+        </div>
+
+        {shown.length === 0 && <div className="notice"><p className="muted">{filter === "done" ? "Nothing complete yet. A subdivision is complete once it's driven and scanned." : filter === "scan" ? "Nothing waiting to be scanned." : filter === "open" ? "Every subdivision is driven." : "No matches."}</p></div>}
+        {[...groups.entries()].map(([g, list]) => (
+          <div key={g}>
+            <div className="group-head"><span className="group-label">{g}</span><span className="group-label" style={{ flex: "none" }}>{list.length}</span></div>
+            <section className="pane">
               <ul className="subs">
                 {list.map(s => <SubRow key={s.id} s={s} open={openId === s.id} onToggle={() => setOpenId(openId === s.id ? null : s.id)} stopNo={stopNo.get(s.id)} onSections={onSections}
                   onScanned={done => { setScanned(s.id, done); say(done ? `${s.name} complete` : `${s.name} marked not scanned`); }} />)}
               </ul>
-            </div>
-          ))}
-        </section>
-      )}
+            </section>
+          </div>
+        ))}
+        <div className="legend" style={{ padding: "0 16px" }}><span><i className="k-new" />New section</span><span><i className="k-btr" />BTR section</span><span>Tap a subdivision to check off sections</span></div>
+      </>)}
       {toast}
-    </>
+    </div>
   );
 }
 

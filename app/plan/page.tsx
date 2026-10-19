@@ -128,134 +128,141 @@ function Planner() {
     return out;
   }, [todayPlan, doneIds]);
 
-  if (!quarter) return <div className="notice"><h2>No drive assigned yet</h2><p className="muted">Planning opens once your manager uploads this quarter's list.</p></div>;
+  if (!quarter) return <div className="stack"><header className="page-h"><h1>Plan Today</h1></header><div className="notice"><h2>No drive assigned yet</h2><p className="muted">Planning opens once your manager uploads this quarter's list.</p></div></div>;
 
-  const chips = (kind: string, setKind: (k: any) => void, opts: [string, string, boolean][]) => (
-    <div className="chips">{opts.map(([k, label, disabled]) => (
-      <button key={k} type="button" className="chip" aria-pressed={kind === k} disabled={disabled} onClick={() => setKind(k)}>{label}</button>))}</div>
-  );
   const due = dueDate ? dueText(dueDate) : null;
   const remaining = todayPlan ? todayPlan.stops.filter(s => !doneIds.has(s.id)) : [];
+  const placeLine = (p: Place | null, clear: () => void) => p
+    ? <div className="cell sep"><span className="cell-t"><span className="cell-sub">{p.address}</span></span><button className="btn sm plain" onClick={clear}>Change</button></div>
+    : null;
 
   return (
-    <>
-      <div className="summary">
-        <div><div className="eyebrow">{quarter.label} · {open.length} to drive{due ? ` · ${due.text}` : ""}</div><h1>Plan today</h1></div>
-      </div>
+    <div className="stack">
+      <header className="page-h">
+        <div className="eyebrow">{quarter.label} · {open.length} to drive{due ? ` · ${due.text}` : ""}</div>
+        <h1>Plan Today</h1>
+      </header>
       <div className="plan-grid">
-        <section className="pane">
+        <div className="stack">
           {todayPlan && !editing ? (
-            <div className="pad stack">
-              <div><div className="eyebrow">Today's route</div><h2>{todayPlan.stops.length} stops · finish ≈ {fmtTime(todayPlan.totals.finishAt)}</h2>
-                <p className="muted small" style={{ margin: "4px 0 0" }}>From {todayPlan.origin.label || "your start"}{todayPlan.destination ? ` to ${todayPlan.destination.label || "your end point"}` : ""}. Planned {fmtTime(todayPlan.createdAt)}.</p></div>
-              <button className="btn block" onClick={() => setEditing(true)}>Change today's stops or start point</button>
-            </div>
+            <section className="upnext">
+              <span className="kicker">Today's route</span>
+              <div><div className="sub-name">{todayPlan.stops.length} stops · finish ≈ {fmtTime(todayPlan.totals.finishAt)}</div>
+                <div className="meta">From {todayPlan.origin.label || "your start"}{todayPlan.destination ? ` to ${todayPlan.destination.label || "your end point"}` : ""} · planned {fmtTime(todayPlan.createdAt)}</div></div>
+              <div className="row"><button className="btn" onClick={() => setEditing(true)}>Change stops or start point</button></div>
+            </section>
           ) : (
             <>
-              <div className="pane-h"><h2 className="grow">1 · Pick today's subdivisions</h2>{chosen.size > 0 && <button className="btn sm ghost" onClick={() => setChosen(new Set())}>Clear</button>}</div>
-              <div style={{ maxHeight: 380, overflowY: "auto" }}>
-                {loading && !subs.length && <div className="pad muted">Loading…</div>}
-                {!loading && !open.length && <div className="pad"><div className="alert ok">Every subdivision assigned to you is driven.</div></div>}
-                {groups.map(([g, list]) => {
-                  const all = list.every(s => chosen.has(s.id));
-                  return (
-                    <div key={g}>
-                      <div className="group-h" style={{ alignItems: "center" }}><span className="eyebrow">{g}</span>
-                        <button className="btn sm ghost" style={{ minHeight: 26 }} onClick={() => toggle(list.map(s => s.id), !all)}>{all ? "Unselect all" : `Select all ${list.length}`}</button></div>
-                      {list.map(s => (
-                        <label key={s.id} className="row" style={{ padding: "10px 16px", borderBottom: "1px solid var(--line)", flexWrap: "nowrap", cursor: "pointer" }}>
-                          <input type="checkbox" className="check sm" checked={chosen.has(s.id)} onChange={e => toggle([s.id], e.target.checked)} />
-                          <span className="grow"><b>{s.name}</b><span className="muted small"> · {s.city}</span></span>
-                          <span className="muted small" style={{ whiteSpace: "nowrap" }}>{openCount(s)} sec</span>
-                        </label>))}
-                    </div>);
-                })}
-              </div>
-              <div className="pad small" style={{ borderTop: "1px solid var(--line)" }}>
-                {picked.length ? <><b>{picked.length} stop{picked.length === 1 ? "" : "s"} · {pickedSecs} sections</b> · about {fmtMin(onSite)} on site plus driving</> : <span className="muted">Choose what you'll drive today. You can plan again tomorrow.</span>}
-              </div>
-
-              <div className="pane-h" style={{ borderTop: "1px solid var(--line)" }}><h2>2 · Start and finish</h2></div>
-              <div className="pad stack">
-                <div className="place-opt">
-                  <span className="label">Start from</span>
-                  {chips(startKind, setStartKind, [["current", "Current location", false], ["home", "Home", !home], ["work", "Work", !work], ["other", "Other address", false]])}
-                  {startKind === "other" && (startOther
-                    ? <div className="row small"><span className="grow">{startOther.address}</span><button className="btn sm ghost" onClick={() => setStartOther(null)}>Change</button></div>
-                    : <AddressSearch onPick={setStartOther} />)}
-                  {(!home || !work) && <span className="muted small">Save Home and Work on the <Link href="/me">Me</Link> tab to use them here.</span>}
-                </div>
-                <div className="place-opt">
-                  <span className="label">Finish at (optional)</span>
-                  {chips(endKind, setEndKind, [["last", "Last stop", false], ["home", "Home", !home], ["work", "Work", !work], ["start", "Back to start", false], ["other", "Other address", false]])}
-                  {endKind === "other" && (endOther
-                    ? <div className="row small"><span className="grow">{endOther.address}</span><button className="btn sm ghost" onClick={() => setEndOther(null)}>Change</button></div>
-                    : <AddressSearch onPick={setEndOther} />)}
-                </div>
-                <div className="place-opt">
-                  <span className="label">Leaving</span>
-                  <div className="chips">
-                    <button type="button" className="chip" aria-pressed={leave === "now"} onClick={() => setLeave("now")}>Now</button>
-                    <button type="button" className="chip" aria-pressed={leave === "later"} onClick={() => setLeave("later")}>Later today</button>
+              <div>
+                <div className="group-head"><span className="group-label">Today's subdivisions</span>{chosen.size > 0 && <button className="btn sm plain" onClick={() => setChosen(new Set())}>Clear</button>}</div>
+                <section className="pane">
+                  <div style={{ maxHeight: 420, overflowY: "auto" }}>
+                    {loading && !subs.length && <div className="pad muted">Loading…</div>}
+                    {!loading && !open.length && <div className="pad muted">Every subdivision assigned to you is driven.</div>}
+                    {groups.map(([g, list]) => {
+                      const all = list.every(s => chosen.has(s.id));
+                      return (
+                        <div key={g}>
+                          <div className="sub-head"><span className="eyebrow">{g}</span>
+                            <button className="btn sm plain" onClick={() => toggle(list.map(s => s.id), !all)}>{all ? "Deselect All" : `Select All ${list.length}`}</button></div>
+                          {list.map(s => (
+                            <label key={s.id} className="pick">
+                              <input type="checkbox" className="check" checked={chosen.has(s.id)} onChange={e => toggle([s.id], e.target.checked)} />
+                              <span className="grow"><b>{s.name}</b><span className="cell-sub" style={{ display: "block" }}>{s.city}</span></span>
+                              <span className="muted small" style={{ whiteSpace: "nowrap" }}>{openCount(s)} sec</span>
+                            </label>))}
+                        </div>);
+                    })}
                   </div>
-                  {leave === "later" && <input type="datetime-local" value={leaveAt} onChange={e => setLeaveAt(e.target.value)} aria-label="Leave at" />}
-                </div>
-                {err && <div className="alert err" role="alert">{err}</div>}
-                <button className="btn primary big block" onClick={build} disabled={busy || !picked.length}>{busy ? "Building route…" : `Build today's route${picked.length ? ` (${picked.length})` : ""}`}</button>
-                {todayPlan && <button className="btn ghost block" onClick={() => setEditing(false)}>Keep current route</button>}
+                  <div className="sticky-foot">
+                    {picked.length ? <><b>{picked.length} stop{picked.length === 1 ? "" : "s"} · {pickedSecs} sections</b> <span className="muted">· about {fmtMin(onSite)} on site plus driving</span></> : <span className="muted">Choose what you'll drive today, here or on the map.</span>}
+                  </div>
+                </section>
               </div>
-            </>
-          )}
-        </section>
 
-        <section className="pane" id="result">
-          <SubdivisionMap subs={mapSubs} picked={mapPicked} order={planOrder}
-            origin={planOrder ? todayPlan?.origin : null} destination={planOrder ? todayPlan?.destination : null}
-            polylines={planOrder ? todayPlan?.polylines : undefined}
-            onToggle={planOrder ? undefined : (id => toggle([id], !chosen.has(id)))} />
-          {!todayPlan ? (
-            <div className="pad muted">{plan ? `Your last route was for ${new Date(plan.createdAt).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}. Pick today's subdivisions to plan a new one.` : "Pick today's subdivisions and a start point. Stops are put in the quickest order using live drive times and each subdivision's section count."}</div>
-          ) : (
-            <>
-              <div className="totals">
-                <div><span className="eyebrow">Stops</span><b>{todayPlan.stops.length}</b></div>
-                <div><span className="eyebrow">Driving</span><b>{fmtMin(todayPlan.totals.driveMin)}</b></div>
-                <div><span className="eyebrow">On site</span><b>{fmtMin(todayPlan.totals.workMin)}</b></div>
-                <div><span className="eyebrow">Finish ≈</span><b>{fmtTime(todayPlan.totals.finishAt)}</b></div>
+              <div>
+                <div className="group-label">Route</div>
+                <div className="group">
+                  <label className="cell"><span className="cell-t">Start</span>
+                    <select className="cell-select" value={startKind} onChange={e => setStartKind(e.target.value as StartKind)}>
+                      <option value="current">Current Location</option><option value="home" disabled={!home}>Home</option><option value="work" disabled={!work}>Work</option><option value="other">Other Address…</option>
+                    </select></label>
+                  {startKind === "other" && (placeLine(startOther, () => setStartOther(null)) || <div className="cell-body sep" style={{ paddingTop: 10 }}><AddressSearch onPick={setStartOther} /></div>)}
+                  <label className="cell"><span className="cell-t">Finish</span>
+                    <select className="cell-select" value={endKind} onChange={e => setEndKind(e.target.value as EndKind)}>
+                      <option value="last">At Last Stop</option><option value="home" disabled={!home}>Home</option><option value="work" disabled={!work}>Work</option><option value="start">Back to Start</option><option value="other">Other Address…</option>
+                    </select></label>
+                  {endKind === "other" && (placeLine(endOther, () => setEndOther(null)) || <div className="cell-body sep" style={{ paddingTop: 10 }}><AddressSearch onPick={setEndOther} /></div>)}
+                  <label className="cell"><span className="cell-t">Leaving</span>
+                    <select className="cell-select" value={leave} onChange={e => setLeave(e.target.value as "now" | "later")}>
+                      <option value="now">Now</option><option value="later">Later Today</option>
+                    </select></label>
+                  {leave === "later" && <label className="cell"><span className="cell-t">Leave at</span><input className="cell-input" type="datetime-local" value={leaveAt} onChange={e => setLeaveAt(e.target.value)} /></label>}
+                </div>
+                {(!home || !work) && <p className="group-foot">Save Home and Work on the <Link href="/me">Me</Link> tab to start or finish there.</p>}
               </div>
-              <div className="pad stack" style={{ gap: 10 }}>
-                <div className="muted small">{todayPlan.totals.miles.toFixed(0)} mi · {todayPlan.minutesPerSection} min per section · {todayPlan.source === "google" ? "live Google drive times" : "estimated drive times"}</div>
-                {todayPlan.note && <div className="alert">{todayPlan.note}</div>}
-                {remaining.length > 0 ? <div className="row">
-                  {legLinks.map((l, i) => <a key={i} className={`btn ${i === 0 ? "primary" : ""}`} href={l.url} target="_blank" rel="noopener">
-                    {l.from === -1 ? "Drive to finish" : l.from === l.to ? `Go to stop ${l.from}` : `Stops ${l.from}–${l.to} in Google Maps`}</a>)}
-                </div> : <div className="alert ok">Every stop on today's route is complete.</div>}
-              </div>
-              <ol className="timeline">
-                <li className="tl"><span className="num" style={{ background: "var(--sign)" }}>S</span><div><b>{todayPlan.origin.label || "Start"}</b>
-                  <div className="leg">Leave {fmtTime(new Date(new Date(todayPlan.stops[0]?.arriveAt || todayPlan.createdAt).getTime() - (todayPlan.stops[0]?.driveMin || 0) * 60000))}</div></div><span /></li>
-                {todayPlan.stops.map((s, i) => {
-                  const done = doneIds.has(s.id);
-                  return (
-                    <li key={s.id} className={`tl ${done ? "is-done" : ""}`}>
-                      <span className="num">{i + 1}</span>
-                      <div style={{ minWidth: 0 }}>
-                        <b>{s.name}</b>{done && <span className="pill done" style={{ marginLeft: 6 }}>Done</span>}
-                        <div className="leg">{fmtMin(s.driveMin)} drive · {s.driveMiles.toFixed(1)} mi · arrive ≈ {fmtTime(s.arriveAt)}</div>
-                        <div className="leg">{s.sections} section{s.sections === 1 ? "" : "s"} · about {fmtMin(s.workMin)} there</div>
-                      </div>
-                      {!done && <a className="btn sm" href={mapsLink(s)} target="_blank" rel="noopener">Navigate</a>}
-                    </li>);
-                })}
-                {todayPlan.destination && todayPlan.finalLeg && (
-                  <li className="tl"><span className="num end">E</span><div><b>{todayPlan.destination.label || todayPlan.destination.address || "Finish"}</b>
-                    <div className="leg">{fmtMin(todayPlan.finalLeg.driveMin)} drive · arrive ≈ {fmtTime(todayPlan.totals.finishAt)}</div></div><span /></li>)}
-              </ol>
+
+              {err && <div className="alert err" role="alert">{err}</div>}
+              <button className="btn primary big block" onClick={build} disabled={busy || !picked.length}>{busy ? "Building Route…" : `Build Today's Route${picked.length ? ` (${picked.length})` : ""}`}</button>
+              {todayPlan && <button className="btn plain block" onClick={() => setEditing(false)}>Keep Current Route</button>}
             </>
           )}
-        </section>
+        </div>
+
+        <div className="stack">
+          <section className="pane" id="result">
+            <SubdivisionMap subs={mapSubs} picked={mapPicked} order={planOrder}
+              origin={planOrder ? todayPlan?.origin : null} destination={planOrder ? todayPlan?.destination : null}
+              polylines={planOrder ? todayPlan?.polylines : undefined}
+              onToggle={planOrder ? undefined : (id => toggle([id], !chosen.has(id)))} />
+            {!todayPlan && (
+              <div className="pad muted small" style={{ paddingTop: 4 }}>{plan ? `Your last route was for ${new Date(plan.createdAt).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}. Pick today's subdivisions to plan a new one.` : "Pick today's subdivisions and a start point. Stops are put in the quickest order using drive times and each subdivision's section count."}</div>)}
+          </section>
+
+          {todayPlan && (<>
+            <div className="tiles compact" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
+              <div className="tile"><span className="tile-k">Stops</span><span className="tile-v">{todayPlan.stops.length}</span></div>
+              <div className="tile"><span className="tile-k">Driving</span><span className="tile-v">{fmtMin(todayPlan.totals.driveMin)}</span></div>
+              <div className="tile"><span className="tile-k">On site</span><span className="tile-v">{fmtMin(todayPlan.totals.workMin)}</span></div>
+              <div className="tile"><span className="tile-k">Finish</span><span className="tile-v">{fmtTime(todayPlan.totals.finishAt)}</span></div>
+            </div>
+            {todayPlan.note && <div className="alert">{todayPlan.note}</div>}
+            {remaining.length > 0
+              ? <div className="stack" style={{ gap: 8 }}>
+                  {legLinks.map((l, i) => <a key={i} className={`btn block ${i === 0 ? "primary big" : ""}`} href={l.url} target="_blank" rel="noopener">
+                    {l.from === -1 ? "Drive to Finish" : l.from === l.to ? `Go to Stop ${l.from}` : `Open Stops ${l.from}–${l.to} in Google Maps`}</a>)}
+                </div>
+              : <div className="alert ok">Every stop on today's route is complete.</div>}
+            <div>
+              <div className="group-label">Stops</div>
+              <section className="pane">
+                <ol className="timeline">
+                  <li className="tl"><span className="num" style={{ background: "#248a3d" }}>S</span><div><b>{todayPlan.origin.label || "Start"}</b>
+                    <div className="leg">Leave {fmtTime(new Date(new Date(todayPlan.stops[0]?.arriveAt || todayPlan.createdAt).getTime() - (todayPlan.stops[0]?.driveMin || 0) * 60000))}</div></div><span /></li>
+                  {todayPlan.stops.map((s, i) => {
+                    const done = doneIds.has(s.id);
+                    return (
+                      <li key={s.id} className={`tl ${done ? "is-done" : ""}`}>
+                        <span className="num">{i + 1}</span>
+                        <div style={{ minWidth: 0 }}>
+                          <b>{s.name}</b>{done && <span className="pill done" style={{ marginLeft: 6 }}>Done</span>}
+                          <div className="leg">{fmtMin(s.driveMin)} drive · {s.driveMiles.toFixed(1)} mi · arrive ≈ {fmtTime(s.arriveAt)}</div>
+                          <div className="leg">{s.sections} section{s.sections === 1 ? "" : "s"} · about {fmtMin(s.workMin)} there</div>
+                        </div>
+                        {!done && <a className="btn sm" href={mapsLink(s)} target="_blank" rel="noopener">Go</a>}
+                      </li>);
+                  })}
+                  {todayPlan.destination && todayPlan.finalLeg && (
+                    <li className="tl"><span className="num end">E</span><div><b>{todayPlan.destination.label || todayPlan.destination.address || "Finish"}</b>
+                      <div className="leg">{fmtMin(todayPlan.finalLeg.driveMin)} drive · arrive ≈ {fmtTime(todayPlan.totals.finishAt)}</div></div><span /></li>)}
+                </ol>
+              </section>
+              <p className="group-foot">{todayPlan.totals.miles.toFixed(0)} mi · {todayPlan.minutesPerSection} min per section · {todayPlan.source === "google" ? "live Google drive times" : "estimated drive times"}</p>
+            </div>
+          </>)}
+        </div>
       </div>
-    </>
+    </div>
   );
 }
 
