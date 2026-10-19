@@ -253,3 +253,6 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .dual + .dual { margin-top: 4px; }
 .dual .mono { text-align: right; }
 .acc > summary .acc-bar { min-width: 0; }
+
+.topbar .signout { background: none; border: 1.5px solid currentColor; color: inherit; border-radius: 6px; padding: 5px 10px; font-weight: 600; font-size: 14px; cursor: pointer; opacity: .85; }
+.topbar .signout:hover { opacity: 1; }

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { RequireAuth, useAuth } from "./Auth";
 import { SyncStatus } from "./PhoneBits";
@@ -44,7 +44,8 @@ export function DriverShell({ children }: { children: ReactNode }) {
 
 export function AdminShell({ children }: { children: ReactNode }) {
   const path = usePathname();
-  const { quarter } = useAuth();
+  const router = useRouter();
+  const { quarter, signOut } = useAuth();
   const links = [
     { href: "/admin", label: "Overview" },
     { href: "/admin/upload", label: "Upload drives" },
@@ -56,7 +57,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <header className="topbar"><div className="wrap">
         <Link href="/admin" style={{ color: "inherit", textDecoration: "none" }} aria-label="Manager home"><Brand section="Drivers · Manager" /></Link>
         {quarter && <span className="quarter">{quarter.label}</span>}
-        <nav>{links.map(l => <Link key={l.href} href={l.href} aria-current={path === l.href ? "page" : undefined}>{l.label}</Link>)}</nav>
+        <nav>
+          {links.map(l => <Link key={l.href} href={l.href} aria-current={path === l.href ? "page" : undefined}>{l.label}</Link>)}
+          <button type="button" className="signout" onClick={async () => { await signOut(); router.replace("/login"); }}>Sign out</button>
+        </nav>
       </div></header>
       <main className="wrap">{children}</main>
     </RequireAuth>
