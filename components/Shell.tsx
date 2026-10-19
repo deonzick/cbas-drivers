@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { RequireAuth, useAuth } from "./Auth";
 import { SyncStatus } from "./PhoneBits";
 import { Brand } from "./Brand";
+import { isDriver } from "@/lib/roles";
 
 const Icon = {
   list: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 6h11M9 12h11M9 18h11" /><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" /></svg>,
@@ -30,6 +31,7 @@ export function DriverShell({ children }: { children: ReactNode }) {
             <span className="desk-only" style={{ gap: 4 }}>
               {tabs.map(t => <Link key={t.href} href={t.href} aria-current={path === t.href ? "page" : undefined}>{t.label}</Link>)}
             </span>
+            {profile?.role === "admin" && <Link href="/admin" className="switch">Manager view</Link>}
           </nav>
         </div></header>
         <SyncStatus />
@@ -45,7 +47,7 @@ export function DriverShell({ children }: { children: ReactNode }) {
 export function AdminShell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const router = useRouter();
-  const { quarter, signOut } = useAuth();
+  const { quarter, signOut, profile } = useAuth();
   const links = [
     { href: "/admin", label: "Overview" },
     { href: "/admin/upload", label: "Upload drives" },
@@ -59,6 +61,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         {quarter && <span className="quarter">{quarter.label}</span>}
         <nav>
           {links.map(l => <Link key={l.href} href={l.href} aria-current={path === l.href ? "page" : undefined}>{l.label}</Link>)}
+          {profile && isDriver(profile) && <Link href="/" className="switch">My drives</Link>}
           <button type="button" className="signout" onClick={async () => { await signOut(); router.replace("/login"); }}>Sign out</button>
         </nav>
       </div></header>

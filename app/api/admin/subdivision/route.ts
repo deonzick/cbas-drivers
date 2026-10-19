@@ -2,6 +2,7 @@ import { handle, HttpError, requireAdmin } from "@/lib/server";
 import { normalizeRows } from "@/lib/parse/normalize";
 import { sectionKey, subdivisionKey } from "@/lib/format";
 import { fetchAll } from "@/lib/fetchAll";
+import { isDriver } from "@/lib/roles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,8 +17,8 @@ export const POST = handle(async (req) => {
     const { data: sub } = await db.from("subdivisions").select("id,name,quarter_id,quarters(is_active)").eq("id", b.id).maybeSingle();
     if (!sub) throw new HttpError(404, "Subdivision not found.");
     if (!(sub as any).quarters?.is_active) throw new HttpError(400, "That quarter is closed and read-only.");
-    const { data: to } = await db.from("profiles").select("id,role,active").eq("id", b.toDriverId).maybeSingle();
-    if (!to || to.role !== "driver" || !to.active) throw new HttpError(400, "Pick an active driver to move it to.");
+    const { data: to } = await db.from("profiles").select("id,role,active,drives").eq("id", b.toDriverId).maybeSingle();
+    if (!to || !isDriver(to) || !to.active) throw new HttpError(400, "Pick an active driver to move it to.");
     const { data: last } = await db.from("subdivisions").select("sort").eq("quarter_id", sub.quarter_id).eq("driver_id", to.id)
       .order("sort", { ascending: false }).limit(1).maybeSingle();
     // Sections, check-offs and the scanned mark move with it. It no longer belongs to the

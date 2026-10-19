@@ -9,6 +9,7 @@ create table public.profiles (
   full_name text not null default '',
   username text unique,
   role text not null default 'driver' check (role in ('driver','admin')),
+  drives boolean not null default true, -- managers who also drive keep this on
   driver_key text,                 -- matches the "Driver" column in assignment PDFs (e.g. "Nate")
   active boolean not null default true,
   home jsonb,                      -- {label, address, lat, lng}

@@ -23,7 +23,7 @@ export const POST = handle(async (req) => {
       if (error) throw new HttpError(400, /already/i.test(error.message) ? "That username is taken." : error.message);
       const { error: pe } = await db.from("profiles").upsert({
         id: data.user.id, full_name: b.fullName || username, username,
-        role: b.role === "admin" ? "admin" : "driver", driver_key: (b.driverKey || b.fullName || "").trim() || null, active: true,
+        role: b.role === "admin" ? "admin" : "driver", drives: b.role === "admin" ? !!b.drives : true, driver_key: (b.driverKey || b.fullName || "").trim() || null, active: true,
       });
       if (pe) throw pe;
       return Response.json({ ok: true, id: data.user.id });
@@ -35,7 +35,9 @@ export const POST = handle(async (req) => {
       if (b.role !== undefined) {
         if (b.id === me.id && b.role !== "admin") throw new HttpError(400, "You can't remove your own manager access.");
         patch.role = b.role === "admin" ? "admin" : "driver";
+        if (patch.role === "driver") patch.drives = true;
       }
+      if (b.drives !== undefined) patch.drives = !!b.drives;
       if (b.active !== undefined) {
         if (b.id === me.id && !b.active) throw new HttpError(400, "You can't turn off your own account.");
         patch.active = !!b.active;

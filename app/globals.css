@@ -269,3 +269,5 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .mpin { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; font: 700 13px var(--f-display); color: #fff; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
 .mpin.start { background: #2a7a4b; } .mpin.end { background: #0e2230; }
 .maplibregl-popup-content { border-radius: 10px !important; padding: 12px 14px !important; }
+
+.topbar .switch { border: 1.5px solid currentColor; border-radius: 6px; }

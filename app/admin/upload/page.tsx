@@ -8,6 +8,7 @@ import { useAdminData } from "@/lib/useAdminData";
 import { api } from "@/lib/supabase";
 import type { ParseResult, ParsedPin, ParsedSubdivision } from "@/lib/parse/normalize";
 import { sectionLabel } from "@/lib/format";
+import { isDriver } from "@/lib/roles";
 
 type Group = { key: string; rows: ParsedSubdivision[]; target: string };
 type Job = {
@@ -32,7 +33,7 @@ function Upload() {
   const [mode, setMode] = useState<"replace" | "add">("replace");
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const drivers = people.filter(p => p.active && p.role === "driver");
+  const drivers = people.filter(p => p.active && isDriver(p));
 
   const patch = (id: string, f: (j: Job) => Partial<Job>) => setJobs(js => js.map(j => j.id === id ? { ...j, ...f(j) } : j));
 

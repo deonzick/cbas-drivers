@@ -5,6 +5,7 @@ import { AdminShell, useToast } from "@/components/Shell";
 import { useAuth, type Profile, type Quarter } from "@/components/Auth";
 import { useAdminData } from "@/lib/useAdminData";
 import { DriverRow } from "@/components/admin/DriverRow";
+import { isDriver } from "@/lib/roles";
 import { api, supabase } from "@/lib/supabase";
 import { dueText, fmtDate, sectionLabel } from "@/lib/format";
 
@@ -85,7 +86,7 @@ function Overview() {
     });
   }, []);
 
-  const drivers = people.filter(p => p.role === "driver");
+  const drivers = people.filter(isDriver);
   const all = Object.values(stats).reduce((a, s) => ({ secs: a.secs + s.secs, done: a.done + s.secsDone, subs: a.subs + s.subs, subsDone: a.subsDone + s.subsDone, scanned: a.scanned + s.scanned, today: a.today + s.doneToday }), { secs: 0, done: 0, subs: 0, subsDone: 0, scanned: 0, today: 0 });
 
   async function act(body: object, okMsg: string) {

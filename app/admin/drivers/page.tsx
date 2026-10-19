@@ -41,8 +41,14 @@ function Row({ p, me, onDone }: { p: Profile; me: string; onDone: (m: string) =>
         ? <div className="row" style={{ flexWrap: "nowrap" }}><input type="text" value={key} onChange={e => setKey(e.target.value)} style={{ width: 120 }} aria-label="Name in drive sheets" />
             <button className="btn sm primary" onClick={() => call({ action: "update", driverKey: key }, "Saved")}>Save</button></div>
         : <button className="btn sm ghost mono" onClick={() => setEdit("key")}>{p.driver_key || "Set…"}</button>}</td>
-      <td><select value={p.role} style={{ width: "auto", minHeight: 36 }} aria-label="Role" onChange={e => call({ action: "update", role: e.target.value }, "Role updated")}>
-        <option value="driver">Driver</option><option value="admin">Manager</option></select></td>
+      <td><select value={p.role} style={{ width: "auto", minHeight: 36 }} aria-label="Role" onChange={e => call({ action: "update", role: e.target.value }, "Access updated")}>
+        <option value="driver">Driver</option><option value="admin">Manager</option></select>
+        {p.role === "admin" && (
+          <label className="remember small" style={{ marginTop: 6 }}>
+            <input type="checkbox" className="check sm" checked={!!p.drives} onChange={e => call({ action: "update", drives: e.target.checked }, e.target.checked ? "Also drives: on" : "Also drives: off")} />
+            Also drives
+          </label>)}
+      </td>
       <td>{p.active ? <span className="pill done">Active</span> : <span className="pill warn">Off</span>}</td>
       <td>
         <div className="row" style={{ gap: 4 }}>
@@ -71,7 +77,7 @@ function Drivers() {
   const { profile, quarter } = useAuth();
   const { people, reload } = useAdminData(quarter);
   const [toast, say] = useToast();
-  const [f, setF] = useState({ fullName: "", username: "", driverKey: "", password: genPassword(), role: "driver" });
+  const [f, setF] = useState({ fullName: "", username: "", driverKey: "", password: genPassword(), role: "driver", drives: false });
   const [err, setErr] = useState<string | null>(null);
   const [created, setCreated] = useState<{ username: string; password: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -81,7 +87,7 @@ function Drivers() {
     try {
       await api("/api/admin/drivers", { method: "POST", body: JSON.stringify({ action: "create", ...f }) });
       setCreated({ username: f.username.trim().toLowerCase(), password: f.password });
-      setF({ fullName: "", username: "", driverKey: "", password: genPassword(), role: "driver" });
+      setF({ fullName: "", username: "", driverKey: "", password: genPassword(), role: "driver", drives: false });
       reload();
     } catch (x: any) { setErr(x.message); }
     setBusy(false);
@@ -102,7 +108,8 @@ function Drivers() {
             <div className="field"><label htmlFor="pw">Temporary password</label>
               <div className="row" style={{ flexWrap: "nowrap" }}><input id="pw" type="text" required minLength={8} value={f.password} onChange={e => setF({ ...f, password: e.target.value })} />
                 <button type="button" className="btn sm" onClick={() => setF({ ...f, password: genPassword() })}>New</button></div></div>
-            <div className="field"><label htmlFor="rl">Access</label><select id="rl" value={f.role} onChange={e => setF({ ...f, role: e.target.value })}><option value="driver">Driver</option><option value="admin">Manager</option></select></div>
+            <div className="field"><label htmlFor="rl">Access</label><select id="rl" value={f.role} onChange={e => setF({ ...f, role: e.target.value })}><option value="driver">Driver</option><option value="admin">Manager</option></select>
+              {f.role === "admin" && <label className="remember small" style={{ marginTop: 6 }}><input type="checkbox" className="check sm" checked={f.drives} onChange={e => setF({ ...f, drives: e.target.checked })} />Also drives (gets drive sheets and the driver screens)</label>}</div>
           </div>
           <p className="muted small" style={{ margin: 0 }}>Drivers sign in with this username and password; no email is needed. “Name in drive sheets” must match the Driver column in the PDFs so uploads find the right person. Tap a name or username in the list below to change it.</p>
           {err && <div className="alert err">{err}</div>}

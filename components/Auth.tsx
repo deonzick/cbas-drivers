@@ -3,12 +3,14 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { cache } from "@/lib/offline";
+import { isDriver } from "@/lib/roles";
 
 export type Place = { label?: string; address?: string; lat: number; lng: number };
 export type Profile = {
   id: string; full_name: string; username: string | null; role: "driver" | "admin";
   driver_key: string | null; active: boolean; home: Place | null; work: Place | null;
   default_start: "home" | "work" | "current" | "custom"; start_place: Place | null;
+  drives: boolean;
 };
 export type Quarter = {
   id: string; label: string; is_active: boolean; closed_at: string | null; summary: any;
@@ -77,9 +79,9 @@ export function RequireAuth({ admin = false, driver = false, children }: { admin
     if (!ready) return;
     if (!profile) router.replace(`/login?next=${encodeURIComponent(path)}`);
     else if (admin && profile.role !== "admin") router.replace("/");
-    else if (driver && profile.role === "admin") router.replace("/admin");
+    else if (driver && !isDriver(profile)) router.replace("/admin");
   }, [ready, profile, admin, driver, router, path]);
-  if (!ready || !profile || (admin && profile.role !== "admin") || (driver && profile.role === "admin")) {
+  if (!ready || !profile || (admin && profile.role !== "admin") || (driver && !isDriver(profile))) {
     return <div className="wrap" style={{ paddingTop: 40 }}><p className="muted">Loading…</p></div>;
   }
   if (!profile.active) {
